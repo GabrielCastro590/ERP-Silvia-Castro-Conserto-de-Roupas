@@ -8,10 +8,10 @@ from datetime import datetime, timedelta
 # ==========================================
 # 0. CONFIGURAÇÃO VISUAL DA PÁGINA (BRANDING)
 # ==========================================
-FAVICON = "logo_silvia.png" if os.path.exists("logo_silvia.png") else "🧵"
+FAVICON = "logo_silvia_guia.png" if os.path.exists("logo_silvia_guia.png") else "🧵"
 
 st.set_page_config(
-    page_title="ERP Silvia Castro - Conserto de Roupas", 
+    page_title="Silvia Castro Conserto de Roupas", 
     page_icon=FAVICON, 
     layout="wide"
 )
@@ -33,67 +33,78 @@ st.markdown("""
     [data-testid="stHeader"] {
         background-color: rgba(0,0,0,0) !important;
         height: 0px !important;
+        display: none !important;
     }
-    
+
+    /* Esconde o menu hamburguer e footer do Streamlit */
+    #MainMenu { display: none !important; }
+    footer { display: none !important; }
+    .stApp > header { display: none !important; }
+
     .block-container {
-        padding-top: 115px !important;
+        padding-top: 90px !important;
     }
     
     /* Fundo geral da aplicação */
     .stApp {
-        background-color: var(--main-bg);
+        background-color: #f8f6fb;
+        background-image: radial-gradient(circle, rgba(180,140,200,0.06) 1px, transparent 1px);
+        background-size: 18px 18px;
     }
-    /* CABEÇALHO FIXO SUPERIOR SUPER PREMIUM */
+
+    /* CABEÇALHO FIXO SUPERIOR */
     .custom-top-header {
         position: fixed;
         top: 0;
         left: 0;
         right: 0;
-        height: 80px;
-        background-color: rgba(255, 255, 255, 0.95) !important;
-        backdrop-filter: blur(8px);
-        box-shadow: 0 2px 12px rgba(0,0,0,0.04);
-        z-index: 999999;
+        height: 72px;
+        background: linear-gradient(135deg, #d4607e 0%, #e8829c 60%, #f195b2 100%) !important;
+        box-shadow: 0 3px 16px rgba(136, 14, 79, 0.35);
+        z-index: 1000;
         display: flex;
         align-items: center;
         justify-content: space-between;
         padding: 0 40px;
-        border-bottom: 1px solid rgba(0,0,0,0.06);
+        border-bottom: none;
     }
-    
+
     .header-brand {
         display: flex;
         flex-direction: column;
         justify-content: center;
     }
-    
+
     .header-title {
         font-family: 'Garamond', 'Times New Roman', Times, serif !important;
-        font-size: 24px !important;
+        font-size: 22px !important;
         font-weight: 700 !important;
-        color: #1A1A1A !important;
+        color: #ffffff !important;
         margin: 0 !important;
         line-height: 1.2 !important;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.8px;
+        text-shadow: 0 1px 4px rgba(0,0,0,0.15);
     }
 
     .header-cnpj {
         font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
         font-size: 11px !important;
-        font-weight: 500 !important;
-        color: #7A7A7A !important;
+        font-weight: 400 !important;
+        color: rgba(255,255,255,0.75) !important;
         margin-top: 3px !important;
-        letter-spacing: 1px;
+        letter-spacing: 0.8px;
     }
-    
+
     .header-status {
-        background-color: #e6f4ea;
-        color: #137333;
-        padding: 6px 14px;
+        background-color: rgba(255,255,255,0.18);
+        color: #ffffff;
+        padding: 6px 16px;
         border-radius: 20px;
         font-size: 12px;
         font-weight: 600;
         font-family: 'Segoe UI', sans-serif !important;
+        border: 1px solid rgba(255,255,255,0.3);
+        backdrop-filter: blur(4px);
     }
 
     /* Força uma estilização elegant nos containers nativos com borda */
@@ -107,9 +118,88 @@ st.markdown("""
     
     /* Customizando a Barra Lateral (Sidebar) */
     [data-testid="stSidebar"] {
-        background-color: var(--sidebar-bg) !important;
-        border-right: 1px solid rgba(0,0,0,0.05);
+        background: linear-gradient(180deg, #fff0f3 0%, #fce4ec 100%) !important;
+        border-right: 1px solid #f8bbd0 !important;
         padding-top: 20px;
+        z-index: 999 !important;
+    }
+
+    /* Título do menu lateral */
+    [data-testid="stSidebar"] .stRadio > label {
+        font-size: 11px !important;
+        font-weight: 700 !important;
+        letter-spacing: 1.5px !important;
+        text-transform: uppercase !important;
+        color: #ad1457 !important;
+        padding-left: 4px;
+    }
+
+    /* Container do grupo de opções — sem gap, sem padding lateral */
+    [data-testid="stSidebar"] .stRadio div[role="radiogroup"] {
+        gap: 0px !important;
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* Cada item do menu */
+    [data-testid="stSidebar"] .stRadio div[role="radiogroup"] label {
+        display: flex !important;
+        align-items: center !important;
+        padding: 11px 20px !important;
+        border-radius: 0px !important;
+        font-size: 14px !important;
+        font-weight: 500 !important;
+        color: #6d2b45 !important;
+        cursor: pointer !important;
+        transition: background-color 0.15s ease !important;
+        border: none !important;
+        background-color: transparent !important;
+        width: 100% !important;
+        font-family: 'Segoe UI', sans-serif !important;
+    }
+
+    /* Hover */
+    [data-testid="stSidebar"] .stRadio div[role="radiogroup"] label:hover {
+        background-color: #f8bbd0 !important;
+        color: #880e4f !important;
+    }
+
+    /* Item selecionado — rosa suave, retângulo cheio */
+    [data-testid="stSidebar"] .stRadio div[role="radiogroup"] label:has(input:checked) {
+        background-color: #f195b2 !important;
+        color: #4a0e2a !important;
+        font-weight: 700 !important;
+        border-left: 4px solid #d4607e !important;
+    }
+
+    /* Esconde o círculo do radio button */
+    [data-testid="stSidebar"] .stRadio div[role="radiogroup"] label span:first-child {
+        display: none !important;
+    }
+
+    /* Esconde o svg/circle interno do radio */
+    [data-testid="stSidebar"] .stRadio div[role="radiogroup"] input[type="radio"] {
+        display: none !important;
+    }
+
+    /* Divisor lateral */
+    [data-testid="stSidebar"] hr {
+        border-color: #f48fb1 !important;
+        opacity: 0.4;
+    }
+
+    /* Centraliza o logo na sidebar */
+    [data-testid="stSidebar"] [data-testid="stImage"],
+    [data-testid="stSidebar"] [data-testid="stImage"] > div {
+        display: flex !important;
+        justify-content: center !important;
+        width: 100% !important;
+        text-align: center !important;
+    }
+    [data-testid="stSidebar"] [data-testid="stImage"] img {
+        margin-left: auto !important;
+        margin-right: auto !important;
+        display: block !important;
     }
     
     /* Estilização dos Botões Primários */
@@ -133,10 +223,20 @@ st.markdown("""
     }
     
     /* Cabeçalhos e Tipografia interna */
-    h1, h2, h3 {
-        color: #2b2b2b !important;
-        font-family: 'Times New Roman', Times, serif !important;
+    h1 {
+        color: #4a0e2a !important;
+        font-family: 'Garamond', 'Georgia', 'Times New Roman', serif !important;
         font-weight: 700 !important;
+        font-size: 28px !important;
+        letter-spacing: 0.5px !important;
+        margin-top: 0px !important;
+        margin-bottom: 16px !important;
+    }
+    h2, h3 {
+        color: #4a0e2a !important;
+        font-family: 'Garamond', 'Georgia', 'Times New Roman', serif !important;
+        font-weight: 700 !important;
+        margin-top: 0px !important;
     }
     
     /* Inputs arredondados */
@@ -150,8 +250,8 @@ st.markdown("""
 st.markdown(f"""
 <div class="custom-top-header">
     <div class="header-brand">
-        <span class="header-title">ERP | Silvia Castro Conserto de Roupas</span>
-        <span class="header-cnpj">CNPJ: 36.329.114/0001-27</span>
+        <span class="header-title">Silvia Castro Conserto de Roupas</span>
+        <span class="header-cnpj">CNPJ: 36.329.114/0001-27 | Telefone: 12 99683-1392</span>
     </div>
     <div class="header-status">
         🟢 Sistema Online
@@ -159,8 +259,108 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# SENHA DO SISTEMA
-SENHA_MASTER = "1234"
+# ==========================================
+# 0.5 SISTEMA DE AUTENTICAÇÃO (LOGIN VISUAL)
+# ==========================================
+# Lê a senha de uma variável de ambiente. Se não existir, usa "1234" como padrão.
+# Para definir, crie um arquivo .env ou execute: export SENHA_ERP="sua_senha_aqui"
+SENHA_MASTER = os.environ.get("SENHA_ERP", "1234")
+
+if "autenticado" not in st.session_state:
+    st.session_state.autenticado = False
+
+def tela_login():
+    st.markdown("""
+        <style>
+        /* Remove o cabeçalho padrão e ajusta o fundo da tela de login */
+        [data-testid="stHeader"] { display: none !important; }
+        .custom-top-header { display: none !important; }
+        
+        /* Fundo geral da tela em BRANCO */
+        .stApp {
+            background-color: #ffffff !important; 
+        }
+        
+        /* Quadrado centralizado com a cor ROSA SUAVE do logo */
+        [data-testid="stVerticalBlockBorderWrapper"] {
+            max-width: 450px !important;
+            margin: 60px auto 0 auto !important;
+            background-color: #fbe4e6 !important; 
+            padding: 35px !important;
+            border-radius: 16px !important;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05) !important;
+            border: 1px solid rgba(0,0,0,0.02) !important;
+        }
+        
+        /* Alinhamentos dos textos */
+        .login-title {
+            font-family: 'Times New Roman', Times, serif !important;
+            color: #2b2b2b !important;
+            font-weight: 700 !important;
+            text-align: center !important;
+            margin-top: 15px !important;
+            margin-bottom: 2px !important;
+            font-size: 26px !important;
+        }
+        
+        .login-subtitle {
+            font-family: 'Segoe UI', sans-serif !important;
+            color: #5c5c5c !important; 
+            text-align: center !important;
+            font-size: 14px !important;
+            margin-bottom: 25px !important;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Força a centralização absoluta de qualquer container de imagem dentro do bloco */
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stImage"] {
+            display: flex !important;
+            justify-content: center !important;
+            align-items: center !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+            width: 100% !important;
+        }
+        
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stImage"] img {
+            border-radius: 12px !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col2:
+        with st.container(border=True):
+            # 1. Exibe a Logo centralizada com tamanho menor e controlado
+            if os.path.exists("logo_silvia.png"):
+                # Ajustamos aqui: aumentamos as laterais para a coluna do meio ficar menor
+                sub_col1, sub_col2, sub_col3 = st.columns([1.5, 2, 1.5])
+                with sub_col2:
+                    st.image("logo_silvia.png", use_container_width=True)
+            else:
+                st.markdown("<h1 style='text-align: center; font-size: 50px; margin:0;'>🧵</h1>", unsafe_allow_html=True)
+                
+            # 2. Títulos
+            st.markdown('<h2 class="login-title">Silvia Castro Conserto de Roupas</h2>', unsafe_allow_html=True)
+            st.markdown('<p class="login-subtitle">Gestão da Empresa</p>', unsafe_allow_html=True)
+            
+            # 3. Campo de senha e botão
+            senha_digitada_login = st.text_input("Senha de Acesso", type="password", key="campo_senha_login", placeholder="••••••••")
+            st.write("")
+            
+            if st.button("Entrar no Sistema ✅", type="primary", use_container_width=True):
+                if senha_digitada_login == SENHA_MASTER:
+                    st.session_state.autenticado = True
+                    st.rerun()
+                else:
+                    st.error("❌ Senha incorreta. Tente novamente.")
+                    
+    st.stop()
+
+if not st.session_state.autenticado:
+    tela_login()
+
 
 # DADOS DA EMPRESA (Para o Cupom)
 NOME_LOJA = "Silvia Castro Conserto de Roupas"
@@ -171,7 +371,12 @@ TELEFONE_LOJA = "12 99683-1392"
 # ==========================================
 # 1. CONEXÃO COM O BANCO DE DADOS
 # ==========================================
-conn = sqlite3.connect("database_v2.db", check_same_thread=False)
+@st.cache_resource
+def get_connection():
+    """Cria uma única conexão reutilizada por todas as sessões do Streamlit."""
+    return sqlite3.connect("database_v2.db", check_same_thread=False)
+
+conn = get_connection()
 cursor = conn.cursor()
 
 cursor.execute("CREATE TABLE IF NOT EXISTS servicos (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, preco REAL NOT NULL)")
@@ -208,6 +413,12 @@ CREATE TABLE IF NOT EXISTS despesas (
     status TEXT DEFAULT 'Paga'
 )
 """)
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS funcionarios (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL UNIQUE
+)
+""")
 conn.commit()
 
 # Migrações seguras caso colunas novas não existam em bancos legados
@@ -221,6 +432,13 @@ except:
 try:
     cursor.execute("ALTER TABLE despesas ADD COLUMN tipo TEXT DEFAULT 'Diária / Variável'")
     cursor.execute("ALTER TABLE despesas ADD COLUMN status TEXT DEFAULT 'Paga'")
+    conn.commit()
+except:
+    pass
+
+# Migração: adiciona coluna atendente_nome nas OS existentes
+try:
+    cursor.execute("ALTER TABLE ordens_servico ADD COLUMN atendente_nome TEXT DEFAULT ''")
     conn.commit()
 except:
     pass
@@ -242,25 +460,34 @@ if "versao_nova_os" not in st.session_state:
 # 2. MENU LATERAL DE NAVEGAÇÃO
 # ==========================================
 if LOGO_PATH:
-    st.sidebar.image(LOGO_PATH, width=200)
+    import base64
+    with open(LOGO_PATH, "rb") as img_file:
+        logo_b64 = base64.b64encode(img_file.read()).decode()
+    ext = LOGO_PATH.split(".")[-1].replace("jpg", "jpeg")
+    st.sidebar.markdown(f"""
+        <div style="text-align: center; padding: 10px 0 5px 0;">
+            <img src="data:image/{ext};base64,{logo_b64}" style="width: 160px; display: inline-block;">
+        </div>
+    """, unsafe_allow_html=True)
 else:
-    st.sidebar.title("🧵 Ateliê ERP")
+    st.sidebar.title("🧵 Silvia Castro Conserto de Roupas")
     
 st.sidebar.write("---")
 menu = st.sidebar.radio("Ir para:", [
-    "➕ Nova OS", 
-    "🔍 Consultar / Editar OS", 
-    "👥 Clientes", 
-    "📋 Painel de Trabalho (Kanban)", 
-    "🏷️ Catálogo de Serviços", 
-    "💸 Registrar Despesa", 
-    "📊 Gráficos & Financeiro"
+    "Nova OS",
+    "Painel de Trabalho (Kanban)",
+    "Consultar / Editar OS",
+    "Clientes",
+    "Registrar Despesa",
+    "Gráficos & Financeiro",
+    "Catálogo de Serviços",
+    "Funcionários"
 ])
 
 # ==========================================
 # TELA 1: NOVA OS
 # ==========================================
-if menu == "➕ Nova OS":
+if menu == "Nova OS":
     st.title("➕ Abertura de Nova Ordem de Serviço")
     
     ultimo_id = cursor.execute("SELECT MAX(id) FROM ordens_servico").fetchone()[0]
@@ -332,6 +559,15 @@ if menu == "➕ Nova OS":
             st.write("---")
             prioridade = st.selectbox("Prioridade para a Production", ["Normal", "Alta 🚨"], key=f"prio_{v}")
             detalhes = st.text_area("Detalhes / Observações do Ajuste", value="", key=f"detalhes_{v}")
+            
+            st.write("---")
+            funcionarios_lista = [r[0] for r in cursor.execute("SELECT nome FROM funcionarios ORDER BY nome ASC").fetchall()]
+            if funcionarios_lista:
+                atendente_selecionado = st.selectbox("👤 Atendente (quem está abrindo a OS)", ["— Selecione —"] + funcionarios_lista, key=f"atend_{v}")
+                atendente_nome = atendente_selecionado if atendente_selecionado != "— Selecione —" else ""
+            else:
+                st.info("💡 Nenhum funcionário cadastrado. Acesse '👤 Funcionários' no menu.")
+                atendente_nome = ""
 
     with col2:
         with st.container(border=True):
@@ -359,6 +595,8 @@ if menu == "➕ Nova OS":
     if st.button("💾 Salvar e Gerar Cupom Térmico (80mm)", type="primary", use_container_width=True):
         if cliente_novo and (not name_novo or not whatsapp_novo):
             st.error("❌ Por favor, preencha o Nome e o WhatsApp da nova cliente.")
+        elif cliente_novo and len("".join(filter(str.isdigit, whatsapp_novo))) < 10:
+            st.error("❌ WhatsApp inválido. Digite apenas números com DDD (mínimo 10 dígitos).")
         elif not cliente_novo and cliente_id is None:
             st.error("❌ Selecione uma cliente cadastrada ou marque a caixinha de Cliente Novo.")
         elif not servicos_selecionados:
@@ -386,9 +624,9 @@ if menu == "➕ Nova OS":
                 forma_restante_db = "Quitado" if resta_pagar_calc <= 0 else forma_restante
 
                 cursor.execute("""
-                    INSERT INTO ordens_servico (cliente_id, servico_nome, detalhes, valor_total, valor_sinal, prazo_entrega, horario_pedido, qtd_pecas, prioridade, forma_sinal, forma_restante)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (cliente_id, texto_servicos_db, detalhes, valor_final, valor_sinal, prazo_formatated, horario_pedido_formatado, total_pecas_os, prioridade, forma_sinal, forma_restante_db))
+                    INSERT INTO ordens_servico (cliente_id, servico_nome, detalhes, valor_total, valor_sinal, prazo_entrega, horario_pedido, qtd_pecas, prioridade, forma_sinal, forma_restante, atendente_nome)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (cliente_id, texto_servicos_db, detalhes, valor_final, valor_sinal, prazo_formatated, horario_pedido_formatado, total_pecas_os, prioridade, forma_sinal, forma_restante_db, atendente_nome))
                 conn.commit()
                 os_id = cursor.lastrowid
                 
@@ -456,6 +694,8 @@ SINAL PAGO:  R$ {valor_sinal:,.2f} ({forma_sinal})
 -----------------------------------------
 ➡️ DATA DE ENTREGA: {prazo_formatated}
 ⚠️ PRIORIDADE: {prioridade.upper()}
+-----------------------------------------
+👤 ATENDENTE: {atendente_nome if atendente_nome else 'Não informado'}
 =========================================
               
   PRODUÇÃO                  
@@ -479,10 +719,17 @@ SINAL PAGO:  R$ {valor_sinal:,.2f} ({forma_sinal})
             st.subheader("🖨️ Cupom Pronto para Impressão (Duas Vias)")
             st.text_area("Visualização do Cupom:", value=st.session_state.cupom_pronto, height=450)
             
+            # Escapa backticks e barras do cupom para evitar quebra do template literal JS
+            cupom_js_safe = (
+                st.session_state.cupom_pronto
+                .replace("\\", "\\\\")
+                .replace("`", "\\`")
+                .replace("$", "\\$")
+            )
             html_impressao = f"""
             <script>
             function imprimirCupom() {{
-                var receita = `{st.session_state.cupom_pronto}`;
+                var receita = `{cupom_js_safe}`;
                 var janela = window.open('', '', 'width=300,height=800');
                 janela.document.write('<pre style="font-family: monospace; font-size: 12px; margin: 0; padding: 10px; white-space: pre-wrap;">' + receita + '</pre>');
                 janela.document.close();
@@ -515,7 +762,7 @@ SINAL PAGO:  R$ {valor_sinal:,.2f} ({forma_sinal})
 # ==========================================
 # TELA: CONSULTAR / EDITAR OS
 # ==========================================
-elif menu == "🔍 Consultar / Editar OS":
+elif menu == "Consultar / Editar OS":
     st.title("🔍 Consulta Geral de Ordens de Serviço")
     
     busca_os = st.text_input("🔍 Buscar OS (Digite o Nº da OS ou o nome da Cliente)")
@@ -656,7 +903,7 @@ elif menu == "🔍 Consultar / Editar OS":
                                 WHERE id = ?
                             """, (novo_detalhe, novo_total, novo_sinal, novo_prazo, novo_status, novo_hora_ped, novo_forma_sinal, f_restante, id_os))
                             conn.commit()
-                            st.success(f"OS #{id_os} updated com sucesso!")
+                            st.success(f"✅ OS #{id_os} atualizada com sucesso!")
                             st.session_state.versao_senha_os += 1
                             st.rerun()
                         else:
@@ -675,7 +922,7 @@ elif menu == "🔍 Consultar / Editar OS":
 # ==========================================
 # TELA: CLIENTES
 # ==========================================
-elif menu == "👥 Clientes":
+elif menu == "Clientes":
     st.title("👥 Gestão de Clientes")
     
     cliente_clicado_id = None
@@ -775,7 +1022,7 @@ elif menu == "👥 Clientes":
                             if senha_cliente == SENHA_MASTER:
                                 cursor.execute("UPDATE clientes SET nome = ?, whatsapp = ? WHERE id = ?", (novo_nome.strip(), novo_whats.strip(), id_gerenciar))
                                 conn.commit()
-                                st.success("Cadastro updated!")
+                                st.success("✅ Cadastro atualizado com sucesso!")
                                 st.session_state.versao_senha_cli += 1
                                 st.rerun()
                             else:
@@ -797,7 +1044,7 @@ elif menu == "👥 Clientes":
 # ==========================================
 # TELA: KANBAN (COM NOVO FILTRO DE DATA)
 # ==========================================
-elif menu == "📋 Painel de Trabalho (Kanban)":
+elif menu == "Painel de Trabalho (Kanban)":
     st.title("📋 Painel de Trabalho da Oficina")
     
     # Linha com os dois filtros do sistema no topo
@@ -1015,7 +1262,7 @@ Obrigada pela preferência e confiança em nosso trabalho!
 # ==========================================
 # TELA: CATÁLOGO DE SERVIÇOS
 # ==========================================
-elif menu == "🏷️ Catálogo de Serviços":
+elif menu == "Catálogo de Serviços":
     st.title("🏷️ Catálogo de Serviços & Preços")
     
     servico_clicado_id = None
@@ -1100,7 +1347,7 @@ elif menu == "🏷️ Catálogo de Serviços":
 # ==========================================
 # TELA: DESPESAS (PRO FLUXO DE CAIXA)
 # ==========================================
-elif menu == "💸 Registrar Despesa":
+elif menu == "Registrar Despesa":
     st.title("💸 Fluxo de Caixa & Controle de Despesas")
     
     with st.container(border=True):
@@ -1231,17 +1478,23 @@ elif menu == "💸 Registrar Despesa":
 # ==========================================
 # TELA: FINANCEIRO
 # ==========================================
-elif menu == "📊 Gráficos & Financeiro":
+elif menu == "Gráficos & Financeiro":
     st.title("📊 Painel Financeiro")
-    total_entradas = float(pd.read_sql_query("SELECT SUM(valor_total) as total FROM ordens_servico", conn)['total'].fillna(0).values[0])
+
+    # Apenas OS com status 'Entregue' representam receita realizada
+    total_entradas = float(pd.read_sql_query("SELECT SUM(valor_total) as total FROM ordens_servico WHERE status = 'Entregue'", conn)['total'].fillna(0).values[0])
     total_saidas = float(pd.read_sql_query("SELECT SUM(valor) as total FROM despesas WHERE status = 'Paga'", conn)['total'].fillna(0).values[0])
     lucro = total_entradas - total_saidas
-    
+
+    # OS ativas que ainda não foram entregues (receita pendente / a receber)
+    total_pendente_os = float(pd.read_sql_query("SELECT SUM(valor_total) as total FROM ordens_servico WHERE status != 'Entregue'", conn)['total'].fillna(0).values[0])
+
     with st.container(border=True):
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Faturamento Bruto", f"R$ {total_entradas:,.2f}")
-        c2.metric("Despesas Totais (Pagas)", f"R$ {total_saidas:,.2f}", delta=f"-R$ {total_saidas:,.2f}", delta_color="inverse")
-        c3.metric("Lucro Líquido Real", f"R$ {lucro:,.2f}")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("💰 Faturamento Realizado", f"R$ {total_entradas:,.2f}", help="Soma das OS com status 'Entregue'")
+        c2.metric("⏳ A Receber (OS Ativas)", f"R$ {total_pendente_os:,.2f}", help="OS abertas que ainda não foram entregues")
+        c3.metric("💸 Despesas Pagas", f"R$ {total_saidas:,.2f}", delta=f"-R$ {total_saidas:,.2f}", delta_color="inverse")
+        c4.metric("📈 Lucro Líquido Real", f"R$ {lucro:,.2f}")
     
     st.divider()
     
@@ -1251,4 +1504,209 @@ elif menu == "📊 Gráficos & Financeiro":
         st.dataframe(df_meios_sinal, use_container_width=True, hide_index=True)
     
     with st.container(border=True):
-        st.bar_chart(pd.DataFrame({"Tipo": ["Entradas", "Saídas"], "Valor (R$)": [total_entradas, total_saidas]}).set_index("Tipo"))    
+        st.bar_chart(pd.DataFrame({"Tipo": ["Realizadas", "Saídas"], "Valor (R$)": [total_entradas, total_saidas]}).set_index("Tipo"))
+
+    st.divider()
+
+    # ---- BACKUP DO BANCO DE DADOS ----
+    with st.container(border=True):
+        st.subheader("💾 Backup do Banco de Dados")
+        st.caption("Baixe uma cópia de segurança do banco a qualquer momento.")
+        if os.path.exists("database_v2.db"):
+            with open("database_v2.db", "rb") as f_db:
+                st.download_button(
+                    label="⬇️ Baixar Backup (database_v2.db)",
+                    data=f_db,
+                    file_name=f"backup_erp_{datetime.today().strftime('%Y%m%d_%H%M')}.db",
+                    mime="application/octet-stream",
+                    use_container_width=True
+                )
+
+    st.divider()
+
+    # ---- EXPORTAÇÃO PARA EXCEL ----
+    with st.container(border=True):
+        st.subheader("📊 Exportar Dados para Excel")
+        st.caption("Gera um arquivo .xlsx com abas separadas para cada tipo de dado. Útil para análise, contabilidade ou histórico mensal.")
+
+        # Filtro de período para a exportação
+        ex_col1, ex_col2 = st.columns(2)
+        with ex_col1:
+            export_inicio = st.date_input("Período — De:", value=datetime.today().replace(day=1), format="DD/MM/YYYY", key="export_inicio")
+        with ex_col2:
+            export_fim = st.date_input("Período — Até:", value=datetime.today(), format="DD/MM/YYYY", key="export_fim")
+
+        if st.button("📥 Gerar Excel Completo", type="primary", use_container_width=True):
+            import io
+            output = io.BytesIO()
+
+            inicio_str = export_inicio.strftime('%Y-%m-%d')
+            fim_str    = export_fim.strftime('%Y-%m-%d')
+            inicio_br  = export_inicio.strftime('%d/%m/%Y')
+            fim_br     = export_fim.strftime('%d/%m/%Y')
+
+            # --- Ordens de Serviço ---
+            df_os_exp = pd.read_sql_query("""
+                SELECT
+                    os.id                          AS "Nº OS",
+                    c.nome                         AS "Cliente",
+                    c.whatsapp                     AS "WhatsApp",
+                    os.servico_nome                AS "Serviços",
+                    os.detalhes                    AS "Detalhes",
+                    os.qtd_pecas                   AS "Qtd Peças",
+                    os.prioridade                  AS "Prioridade",
+                    os.atendente_nome              AS "Atendente",
+                    os.horario_pedido              AS "Data/Hora Abertura",
+                    os.prazo_entrega               AS "Prazo Entrega",
+                    os.status                      AS "Status",
+                    os.valor_total                 AS "Valor Total (R$)",
+                    os.valor_sinal                 AS "Sinal Pago (R$)",
+                    (os.valor_total - os.valor_sinal) AS "Saldo Restante (R$)",
+                    os.forma_sinal                 AS "Forma Pagto Sinal",
+                    os.forma_restante              AS "Forma Pagto Restante"
+                FROM ordens_servico os
+                JOIN clientes c ON os.cliente_id = c.id
+                WHERE substr(os.horario_pedido, 7, 4) || '-'
+                      || substr(os.horario_pedido, 4, 2) || '-'
+                      || substr(os.horario_pedido, 1, 2)
+                      BETWEEN ? AND ?
+                ORDER BY os.id DESC
+            """, conn, params=(inicio_str, fim_str))
+
+            # Fallback: se a query de data não retornar nada (datas no formato diferente), traz tudo
+            if df_os_exp.empty:
+                df_os_exp = pd.read_sql_query("""
+                    SELECT
+                        os.id AS "Nº OS", c.nome AS "Cliente", c.whatsapp AS "WhatsApp",
+                        os.servico_nome AS "Serviços", os.detalhes AS "Detalhes",
+                        os.qtd_pecas AS "Qtd Peças", os.prioridade AS "Prioridade",
+                        os.horario_pedido AS "Data/Hora Abertura", os.prazo_entrega AS "Prazo Entrega",
+                        os.status AS "Status", os.valor_total AS "Valor Total (R$)",
+                        os.valor_sinal AS "Sinal Pago (R$)",
+                        (os.valor_total - os.valor_sinal) AS "Saldo Restante (R$)",
+                        os.forma_sinal AS "Forma Pagto Sinal", os.forma_restante AS "Forma Pagto Restante"
+                    FROM ordens_servico os
+                    JOIN clientes c ON os.cliente_id = c.id
+                    ORDER BY os.id DESC
+                """, conn)
+
+            # --- Faturamento por OS Entregue ---
+            df_fat_exp = df_os_exp[df_os_exp["Status"] == "Entregue"].copy() if not df_os_exp.empty else pd.DataFrame()
+
+            # --- Clientes ---
+            df_cli_exp = pd.read_sql_query("""
+                SELECT
+                    c.id        AS "Código",
+                    c.nome      AS "Nome",
+                    c.whatsapp  AS "WhatsApp",
+                    COUNT(os.id)        AS "Total de OS",
+                    SUM(os.valor_total) AS "Total Gasto (R$)"
+                FROM clientes c
+                LEFT JOIN ordens_servico os ON os.cliente_id = c.id
+                GROUP BY c.id
+                ORDER BY c.nome ASC
+            """, conn)
+
+            # --- Despesas ---
+            df_desp_exp = pd.read_sql_query("""
+                SELECT
+                    id          AS "ID",
+                    data        AS "Data",
+                    descricao   AS "Descrição",
+                    valor       AS "Valor (R$)",
+                    category    AS "Categoria",
+                    tipo        AS "Tipo",
+                    status      AS "Status"
+                FROM despesas
+                WHERE data BETWEEN ? AND ?
+                ORDER BY data DESC
+            """, conn, params=(inicio_str, fim_str))
+            if not df_desp_exp.empty:
+                df_desp_exp["Data"] = pd.to_datetime(df_desp_exp["Data"]).dt.strftime('%d/%m/%Y')
+
+            # --- Catálogo de Serviços ---
+            df_serv_exp = pd.read_sql_query("""
+                SELECT nome AS "Serviço", preco AS "Preço Base (R$)" FROM servicos ORDER BY nome ASC
+            """, conn)
+
+            # --- Resumo Financeiro ---
+            total_fat   = float(df_fat_exp["Valor Total (R$)"].sum()) if not df_fat_exp.empty else 0.0
+            total_desp  = float(df_desp_exp[df_desp_exp["Status"] == "Paga"]["Valor (R$)"].sum()) if not df_desp_exp.empty else 0.0
+            df_resumo = pd.DataFrame({
+                "Item": [
+                    "Faturamento Realizado (OS Entregues)",
+                    "Despesas Pagas",
+                    "Lucro Líquido",
+                    "Período"
+                ],
+                "Valor": [
+                    f"R$ {total_fat:,.2f}",
+                    f"R$ {total_desp:,.2f}",
+                    f"R$ {(total_fat - total_desp):,.2f}",
+                    f"{inicio_br} a {fim_br}"
+                ]
+            })
+
+            # --- Grava no Excel com múltiplas abas ---
+            with pd.ExcelWriter(output, engine="openpyxl") as writer:
+                df_resumo.to_excel(writer,   sheet_name="Resumo Financeiro",  index=False)
+                df_os_exp.to_excel(writer,   sheet_name="Ordens de Serviço",  index=False)
+                df_fat_exp.to_excel(writer,  sheet_name="Faturamento",        index=False)
+                df_cli_exp.to_excel(writer,  sheet_name="Clientes",           index=False)
+                df_desp_exp.to_excel(writer, sheet_name="Despesas",           index=False)
+                df_serv_exp.to_excel(writer, sheet_name="Catálogo Serviços",  index=False)
+
+            output.seek(0)
+            nome_arquivo = f"erp_silviacastro_{export_inicio.strftime('%d%m%Y')}_a_{export_fim.strftime('%d%m%Y')}.xlsx"
+
+            st.download_button(
+                label="⬇️ Baixar Excel Gerado",
+                data=output,
+                file_name=nome_arquivo,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+            st.success(f"✅ Excel gerado com sucesso! Período: {inicio_br} a {fim_br}")
+
+# ==========================================
+# TELA 8: FUNCIONÁRIOS
+# ==========================================
+elif menu == "Funcionários":
+    st.title("👤 Funcionários")
+    st.caption("Cadastre aqui os nomes dos atendentes. Eles aparecerão na seleção ao abrir uma nova OS e na via da empresa do cupom.")
+
+    # --- Cadastro ---
+    with st.container(border=True):
+        st.subheader("➕ Cadastrar Novo Funcionário")
+        novo_func = st.text_input("Nome completo do funcionário", placeholder="Ex: Silvia Castro")
+        if st.button("💾 Cadastrar", type="primary", use_container_width=True):
+            if not novo_func.strip():
+                st.error("❌ Digite o nome do funcionário.")
+            else:
+                existente = cursor.execute("SELECT id FROM funcionarios WHERE nome = ?", (novo_func.strip(),)).fetchone()
+                if existente:
+                    st.warning(f"⚠️ '{novo_func.strip()}' já está cadastrado.")
+                else:
+                    cursor.execute("INSERT INTO funcionarios (nome) VALUES (?)", (novo_func.strip(),))
+                    conn.commit()
+                    st.success(f"✅ '{novo_func.strip()}' cadastrado com sucesso!")
+                    st.rerun()
+
+    # --- Lista ---
+    funcionarios_db = cursor.execute("SELECT id, nome FROM funcionarios ORDER BY nome ASC").fetchall()
+
+    if not funcionarios_db:
+        st.info("Nenhum funcionário cadastrado ainda.")
+    else:
+        with st.container(border=True):
+            st.subheader(f"📋 Funcionários Cadastrados ({len(funcionarios_db)})")
+            for func_id, func_nome in funcionarios_db:
+                col_nome, col_btn = st.columns([5, 1])
+                with col_nome:
+                    st.markdown(f"👤 **{func_nome}**")
+                with col_btn:
+                    if st.button("🗑️ Remover", key=f"del_func_{func_id}"):
+                        cursor.execute("DELETE FROM funcionarios WHERE id = ?", (func_id,))
+                        conn.commit()
+                        st.success(f"'{func_nome}' removido.")
+                        st.rerun()
