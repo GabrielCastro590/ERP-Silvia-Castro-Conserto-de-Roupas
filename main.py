@@ -1,9 +1,9 @@
 import streamlit as st
 import pandas as pd
-import sqlite3
 import urllib.parse
 import os
 from datetime import datetime, timedelta
+from supabase import create_client, Client
 
 # ==========================================
 # 0. CONFIGURAÇÃO VISUAL DA PÁGINA (BRANDING)
@@ -369,79 +369,86 @@ ENDERECO_LOJA = "Rua Conego Almeida, 85 - Centro, Taubate - SP, 12.080-260"
 TELEFONE_LOJA = "12 99683-1392"
 
 # ==========================================
-# 1. CONEXÃO COM O BANCO DE DADOS
+# 1. CONEXÃO COM O BANCO DE DADOS (SUPABASE)
 # ==========================================
+SUPABASE_URL = "https://tqagcuooqbtotwnaznue.supabase.co"
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_secret_QqBIxIZ-h5BC7719HiemSw_QzgDCk77")
+
 @st.cache_resource
-def get_connection():
-    """Cria uma única conexão reutilizada por todas as sessões do Streamlit."""
-    return sqlite3.connect("database_v2.db", check_same_thread=False)
+def get_supabase():
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
 
-conn = get_connection()
-cursor = conn.cursor()
+sb = get_supabase()
 
-cursor.execute("CREATE TABLE IF NOT EXISTS servicos (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, preco REAL NOT NULL)")
-cursor.execute("CREATE TABLE IF NOT EXISTS clientes (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, whatsapp TEXT NOT NULL)")
+def sb_query(table, filters=None, select="*", order=None):
+    try:
+        q = sb.table(table).select(select)
+        if filters:
+            for col, val in filters.items():
+                q = q.eq(col, val)
+        if order:
+            q = q.order(order)
+        result = q.execute()
+        return pd.DataFrame(result.data) if result.data else pd.DataFrame()
+    except Exception as e:
+        st.error(f"Erro ao consultar {table}: {e}")
+        return pd.DataFrame()
 
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS ordens_servico (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, 
-    cliente_id INTEGER NOT NULL, 
-    servico_nome TEXT NOT NULL,
-    detalhes TEXT, 
-    valor_total REAL NOT NULL, 
-    valor_sinal REAL NOT NULL, 
-    prazo_entrega TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'A Iniciar', 
-    horario_pedido TEXT, 
-    qtd_pecas INTEGER DEFAULT 1, 
-    prioridade TEXT DEFAULT 'Normal',
-    forma_sinal TEXT DEFAULT 'Não se aplica',
-    forma_restante TEXT DEFAULT 'Pendente',
-    FOREIGN KEY(cliente_id) REFERENCES clientes(id)
-)
-""")
+def sb_insert(table, data):
+    try:
+        result = sb.table(table).insert(data).execute()
+        if result.data:
+            return result.data[0].get("id")
+    except Exception as e:
+        st.error(f"Erro ao inserir em {table}: {e}")
+    return None
 
-# Criação/Garantia da tabela de despesas atualizada com status e tipo
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS despesas (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, 
-    descricao TEXT NOT NULL, 
-    valor REAL NOT NULL, 
-    data TEXT NOT NULL, 
-    category TEXT NOT NULL,
-    tipo TEXT DEFAULT 'Diária / Variável',
-    status TEXT DEFAULT 'Paga'
-)
-""")
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS funcionarios (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    nome TEXT NOT NULL UNIQUE
-)
-""")
-conn.commit()
+def sb_update(table, data, match_col, match_val):
+    try:
+        sb.table(table).update(data).eq(match_col, match_val).execute()
+    except Exception as e:
+        st.error(f"Erro ao atualizar {table}: {e}")
 
-# Migrações seguras caso colunas novas não existam em bancos legados
-try:
-    cursor.execute("ALTER TABLE ordens_servico ADD COLUMN forma_sinal TEXT DEFAULT 'Não se aplica'")
-    cursor.execute("ALTER TABLE ordens_servico ADD COLUMN forma_restante TEXT DEFAULT 'Pendente'")
-    conn.commit()
-except:
-    pass
+def sb_delete(table, match_col, match_val):
+    try:
+        sb.table(table).delete().eq(match_col, match_val).execute()
+    except Exception as e:
+        st.error(f"Erro ao deletar em {table}: {e}")
 
-try:
-    cursor.execute("ALTER TABLE despesas ADD COLUMN tipo TEXT DEFAULT 'Diária / Variável'")
-    cursor.execute("ALTER TABLE despesas ADD COLUMN status TEXT DEFAULT 'Paga'")
-    conn.commit()
-except:
-    pass
+def sb_fetch_one(table, filters):
+    df = sb_query(table, filters=filters)
+    if not df.empty:
+        return df.iloc[0].to_dict()
+    return None
 
-# Migração: adiciona coluna atendente_nome nas OS existentes
-try:
-    cursor.execute("ALTER TABLE ordens_servico ADD COLUMN atendente_nome TEXT DEFAULT ''")
-    conn.commit()
-except:
-    pass
+@st.cache_data(ttl=300)
+def carregar_servicos():
+    """Cache de serviços por 5 minutos — raramente mudam."""
+    return sb_query("servicos", order="nome")
+
+@st.cache_data(ttl=300)
+def carregar_funcionarios():
+    """Cache de funcionários por 5 minutos — raramente mudam."""
+    return sb_query("funcionarios", order="nome")
+
+@st.cache_data(ttl=30)
+def carregar_clientes():
+    """Cache de clientes por 30 segundos."""
+    return sb_query("clientes", order="nome")
+
+@st.cache_data(ttl=15)
+def carregar_ordens():
+    """Cache de OS por 15 segundos."""
+    return sb_query("ordens_servico", order="id")
+
+def invalidar_cache():
+    """Limpa todos os caches após alterações."""
+    carregar_servicos.clear()
+    carregar_funcionarios.clear()
+    carregar_clientes.clear()
+    carregar_ordens.clear()
+
+# Tabelas já criadas no Supabase via SQL Editor
 
 if "versao_senha_os" not in st.session_state:
     st.session_state.versao_senha_os = 0
@@ -490,13 +497,14 @@ menu = st.sidebar.radio("Ir para:", [
 if menu == "Nova OS":
     st.title("➕ Abertura de Nova Ordem de Serviço")
     
-    ultimo_id = cursor.execute("SELECT MAX(id) FROM ordens_servico").fetchone()[0]
+    df_max = carregar_ordens()
+    ultimo_id = int(df_max["id"].max()) if not df_max.empty and not df_max["id"].isna().all() else 0
     proxima_os = (ultimo_id + 1) if ultimo_id is not None else 1
     
     st.info(f"📋 **Você está preenchendo a Ordem de Serviço Nº: #{proxima_os}**")
     
-    clientes_df = pd.read_sql_query("SELECT id, nome, whatsapp FROM clientes ORDER BY nome ASC", conn)
-    servicos_df = pd.read_sql_query("SELECT nome, preco FROM servicos ORDER BY nome ASC", conn)
+    clientes_df = carregar_clientes()
+    servicos_df = carregar_servicos()[["nome","preco"]]
 
     v = st.session_state.versao_nova_os
 
@@ -561,7 +569,8 @@ if menu == "Nova OS":
             detalhes = st.text_area("Detalhes / Observações do Ajuste", value="", key=f"detalhes_{v}")
             
             st.write("---")
-            funcionarios_lista = [r[0] for r in cursor.execute("SELECT nome FROM funcionarios ORDER BY nome ASC").fetchall()]
+            _df_func = carregar_funcionarios()
+            funcionarios_lista = _df_func["nome"].tolist() if not _df_func.empty else []
             if funcionarios_lista:
                 atendente_selecionado = st.selectbox("👤 Atendente (quem está abrindo a OS)", ["— Selecione —"] + funcionarios_lista, key=f"atend_{v}")
                 atendente_nome = atendente_selecionado if atendente_selecionado != "— Selecione —" else ""
@@ -606,14 +615,13 @@ if menu == "Nova OS":
         else:
             pode_salvar = True
             if cliente_novo:
-                checar = cursor.execute("SELECT id FROM clientes WHERE nome = ?", (name_novo.strip(),)).fetchone()
+                checar_df = sb_query("clientes", filters={"nome": name_novo.strip()})
+                checar = checar_df.iloc[0]["id"] if not checar_df.empty else None
                 if checar:
                     st.error(f"⚠️ A cliente já está cadastrada no sistema!")
                     pode_salvar = False
                 else:
-                    cursor.execute("INSERT INTO clientes (nome, whatsapp) VALUES (?, ?)", (name_novo.strip(), whatsapp_novo.strip()))
-                    conn.commit()
-                    cliente_id = cursor.lastrowid
+                    cliente_id = sb_insert("clientes", {"nome": name_novo.strip(), "whatsapp": whatsapp_novo.strip()})
                     nome_final_cupom = name_novo.strip()
                     whats_final_whatsapp = whatsapp_novo.strip()
             
@@ -623,12 +631,14 @@ if menu == "Nova OS":
                 resta_pagar_calc = valor_final - valor_sinal
                 forma_restante_db = "Quitado" if resta_pagar_calc <= 0 else forma_restante
 
-                cursor.execute("""
-                    INSERT INTO ordens_servico (cliente_id, servico_nome, detalhes, valor_total, valor_sinal, prazo_entrega, horario_pedido, qtd_pecas, prioridade, forma_sinal, forma_restante, atendente_nome)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (cliente_id, texto_servicos_db, detalhes, valor_final, valor_sinal, prazo_formatated, horario_pedido_formatado, total_pecas_os, prioridade, forma_sinal, forma_restante_db, atendente_nome))
-                conn.commit()
-                os_id = cursor.lastrowid
+                invalidar_cache()
+                os_id = sb_insert("ordens_servico", {
+                    "cliente_id": cliente_id, "servico_nome": texto_servicos_db, "detalhes": detalhes,
+                    "valor_total": valor_final, "valor_sinal": valor_sinal, "prazo_entrega": prazo_formatated,
+                    "horario_pedido": horario_pedido_formatado, "qtd_pecas": total_pecas_os,
+                    "prioridade": prioridade, "forma_sinal": forma_sinal, "forma_restante": forma_restante_db,
+                    "atendente_nome": atendente_nome
+                })
                 
                 resta_pagar = valor_final - valor_sinal
                 status_pagamento_cupom = f"RESTA PAGAR: R$ {resta_pagar:,.2f} ({forma_restante_db})" if resta_pagar > 0 else "STATUS VALOR: ✅ TOTALMENTE QUITADO"
@@ -782,14 +792,22 @@ elif menu == "Consultar / Editar OS":
 
     with aba_ativas:
         try:
-            query_ativas = f"""
-                SELECT os.id as 'Nº OS', c.nome as 'Cliente', os.prioridade as '🚨 Prioridade', os.qtd_pecas as 'Total Peças', os.servico_nome as 'Serviços (Qtd)', 
-                       os.valor_total as 'Total (R$)', (os.valor_total - os.valor_sinal) as 'Falta Pagar (R$)', os.horario_pedido as 'Abertura/Hora', os.prazo_entrega as 'Data Entrega', os.status as 'Status'
-                FROM ordens_servico os JOIN clientes c ON os.cliente_id = c.id
-                WHERE os.status != 'Entregue' {clausula_busca}
-                ORDER BY os.id DESC
-            """
-            df_ativas = pd.read_sql_query(query_ativas, conn, params=parametros_busca)
+            _df_os_a = carregar_ordens().copy()
+            _df_cli_a = carregar_clientes()
+            if not _df_os_a.empty and not _df_cli_a.empty:
+                _df_os_a = _df_os_a.merge(_df_cli_a.rename(columns={"id":"cliente_id","nome":"Cliente","whatsapp":"whatsapp"}), on="cliente_id", how="left")
+            _df_os_a = _df_os_a[_df_os_a["status"] != "Entregue"] if not _df_os_a.empty else _df_os_a
+            if busca_os and not _df_os_a.empty:
+                if busca_os.isdigit():
+                    _df_os_a = _df_os_a[_df_os_a["id"] == int(busca_os)]
+                else:
+                    _df_os_a = _df_os_a[_df_os_a["Cliente"].str.contains(busca_os, case=False, na=False)]
+            if not _df_os_a.empty:
+                _df_os_a = _df_os_a.sort_values("id", ascending=False)
+                _df_os_a["Falta Pagar (R$)"] = _df_os_a["valor_total"] - _df_os_a["valor_sinal"]
+                df_ativas = _df_os_a.rename(columns={"id":"Nº OS","prioridade":"🚨 Prioridade","qtd_pecas":"Total Peças","servico_nome":"Serviços (Qtd)","valor_total":"Total (R$)","horario_pedido":"Abertura/Hora","prazo_entrega":"Data Entrega","status":"Status"})
+            else:
+                df_ativas = pd.DataFrame()
             if df_ativas.empty:
                 st.info("Nenhuma Ordem de Serviço ativa encontrada.")
             else:
@@ -810,14 +828,22 @@ elif menu == "Consultar / Editar OS":
 
     with aba_entregues:
         try:
-            query_entregues = f"""
-                SELECT os.id as 'Nº OS', c.nome as 'Cliente', os.qtd_pecas as 'Total Peças', os.servico_nome as 'Serviços (Qtd)', 
-                       os.valor_total as 'Total (R$)', (os.valor_total - os.valor_sinal) as 'Falta Pagar (R$)', os.horario_pedido as 'Abertura/Hora', os.prazo_entrega as 'Data Entrega', os.status as 'Status'
-                FROM ordens_servico os JOIN clientes c ON os.cliente_id = c.id
-                WHERE os.status = 'Entregue' {clausula_busca}
-                ORDER BY os.id DESC
-            """
-            df_entregues = pd.read_sql_query(query_entregues, conn, params=parametros_busca)
+            _df_os_e = carregar_ordens().copy()
+            _df_cli_e = carregar_clientes()
+            if not _df_os_e.empty and not _df_cli_e.empty:
+                _df_os_e = _df_os_e.merge(_df_cli_e.rename(columns={"id":"cliente_id","nome":"Cliente","whatsapp":"whatsapp"}), on="cliente_id", how="left")
+            _df_os_e = _df_os_e[_df_os_e["status"] == "Entregue"] if not _df_os_e.empty else _df_os_e
+            if busca_os and not _df_os_e.empty:
+                if busca_os.isdigit():
+                    _df_os_e = _df_os_e[_df_os_e["id"] == int(busca_os)]
+                else:
+                    _df_os_e = _df_os_e[_df_os_e["Cliente"].str.contains(busca_os, case=False, na=False)]
+            if not _df_os_e.empty:
+                _df_os_e = _df_os_e.sort_values("id", ascending=False)
+                _df_os_e["Falta Pagar (R$)"] = _df_os_e["valor_total"] - _df_os_e["valor_sinal"]
+                df_entregues = _df_os_e.rename(columns={"id":"Nº OS","qtd_pecas":"Total Peças","servico_nome":"Serviços (Qtd)","valor_total":"Total (R$)","horario_pedido":"Abertura/Hora","prazo_entrega":"Data Entrega","status":"Status"})
+            else:
+                df_entregues = pd.DataFrame()
             if df_entregues.empty:
                 st.info("Nenhuma Ordem de Serviço entregue encontrada.")
             else:
@@ -844,11 +870,14 @@ elif menu == "Consultar / Editar OS":
             st.info("💡 Clique em cima de qualquer Ordem de Serviço nas tabelas superiores para liberar a consulta e alteração dos dados.")
         else:
             try:
-                df_todas_edicao = pd.read_sql_query("""
-                    SELECT os.id as 'Nº OS', c.nome as 'Cliente', os.servico_nome as 'Serviços'
-                    FROM ordens_servico os JOIN clientes c ON os.cliente_id = c.id
-                    ORDER BY os.id DESC
-                """, conn)
+                _df_ed = carregar_ordens().copy()
+                _df_cli_ed = carregar_clientes()
+                if not _df_ed.empty and not _df_cli_ed.empty:
+                    _df_ed = _df_ed.merge(_df_cli_ed.rename(columns={"id":"cliente_id","nome":"Cliente"}), on="cliente_id", how="left")
+                    _df_ed = _df_ed.sort_values("id", ascending=False)
+                    df_todas_edicao = _df_ed.rename(columns={"id":"Nº OS","servico_nome":"Serviços"})
+                else:
+                    df_todas_edicao = pd.DataFrame()
             except:
                 df_todas_edicao = pd.DataFrame()
             
@@ -872,7 +901,8 @@ elif menu == "Consultar / Editar OS":
                 )
                 id_os = opcoes_os[os_selecionada]
                 
-                dados_os = cursor.execute("SELECT detalhes, valor_total, valor_sinal, prazo_entrega, status, horario_pedido, forma_sinal, forma_restante FROM ordens_servico WHERE id = ?", (id_os,)).fetchone()
+                _dos = sb_fetch_one("ordens_servico", {"id": id_os})
+                dados_os = (_dos["detalhes"], _dos["valor_total"], _dos["valor_sinal"], _dos["prazo_entrega"], _dos["status"], _dos["horario_pedido"], _dos["forma_sinal"], _dos["forma_restante"]) if _dos else None
                 
                 c1, c2, c3 = st.columns(3)
                 with c1:
@@ -897,12 +927,12 @@ elif menu == "Consultar / Editar OS":
                         if senha_digitada == SENHA_MASTER:
                             f_restante = "Quitado" if novo_sinal >= novo_total else novo_forma_restante
                             
-                            cursor.execute("""
-                                UPDATE ordens_servico 
-                                SET detalhes = ?, valor_total = ?, valor_sinal = ?, prazo_entrega = ?, status = ?, horario_pedido = ?, forma_sinal = ?, forma_restante = ?
-                                WHERE id = ?
-                            """, (novo_detalhe, novo_total, novo_sinal, novo_prazo, novo_status, novo_hora_ped, novo_forma_sinal, f_restante, id_os))
-                            conn.commit()
+                            sb_update("ordens_servico", {
+                                "detalhes": novo_detalhe, "valor_total": novo_total, "valor_sinal": novo_sinal,
+                                "prazo_entrega": novo_prazo, "status": novo_status, "horario_pedido": novo_hora_ped,
+                                "forma_sinal": novo_forma_sinal, "forma_restante": f_restante
+                            }, "id", id_os)
+                            invalidar_cache()
                             st.success(f"✅ OS #{id_os} atualizada com sucesso!")
                             st.session_state.versao_senha_os += 1
                             st.rerun()
@@ -911,8 +941,8 @@ elif menu == "Consultar / Editar OS":
                 with col_b2:
                     if st.button("Excluir / Cancelar OS ❌", use_container_width=True):
                         if senha_digitada == SENHA_MASTER:
-                            cursor.execute("DELETE FROM ordens_servico WHERE id = ?", (id_os,))
-                            conn.commit()
+                            invalidar_cache()
+                            sb_delete("ordens_servico", "id", id_os)
                             st.warning(f"OS #{id_os} apagada!")
                             st.session_state.versao_senha_os += 1
                             st.rerun()
@@ -933,9 +963,9 @@ elif menu == "Clientes":
             st.subheader("🔍 Lista Geral de Clientes")
             busca = st.text_input("Buscar cliente por nome...")
             if busca:
-                dados_clientes = pd.read_sql_query("SELECT id as 'Código', nome as 'Nome', whatsapp as 'WhatsApp' FROM clientes WHERE nome LIKE ? ORDER BY nome ASC", conn, params=(f"%{busca}%",))
+                dados_clientes = carregar_clientes().rename(columns={"id":"Código","nome":"Nome","whatsapp":"WhatsApp"}).loc[lambda df: df["Nome"].str.contains(busca, case=False, na=False)]
             else:
-                dados_clientes = pd.read_sql_query("SELECT id as 'Código', nome as 'Nome', whatsapp as 'WhatsApp' FROM clientes ORDER BY nome ASC", conn)
+                dados_clientes = carregar_clientes().rename(columns={"id":"Código","nome":"Nome","whatsapp":"WhatsApp"})
             
             selecao_clientes = st.dataframe(
                 dados_clientes, 
@@ -955,12 +985,13 @@ elif menu == "Clientes":
             whatsapp_cliente = st.text_input("WhatsApp (Apenas números com DDD)", key="cad_whats")
             if st.button("Salvar Cliente", type="primary", use_container_width=True):
                 if nome_cliente and whatsapp_cliente:
-                    checar = cursor.execute("SELECT id FROM clientes WHERE nome = ?", (nome_cliente.strip(),)).fetchone()
+                    checar_df2 = sb_query("clientes", filters={"nome": nome_cliente.strip()})
+                    checar = checar_df2.iloc[0]["id"] if not checar_df2.empty else None
                     if checar:
                         st.error("⚠️ Este nome de cliente já está cadastrado!")
                     else:
-                        cursor.execute("INSERT INTO clientes (nome, whatsapp) VALUES (?, ?)", (nome_cliente.strip(), whatsapp_cliente.strip()))
-                        conn.commit()
+                        sb_insert("clientes", {"nome": nome_cliente.strip(), "whatsapp": whatsapp_cliente.strip()})
+                        invalidar_cache()
                         st.success("Cliente salva com sucesso!")
                         st.rerun()
                 else:
@@ -972,7 +1003,7 @@ elif menu == "Clientes":
             if cliente_clicado_id is None:
                 st.info("💡 Selecione um cliente na tabela ao lado para gerenciar seu cadastro e ver o histórico de ordens.")
             else:
-                clientes_lista = pd.read_sql_query("SELECT id, nome FROM clientes ORDER BY nome ASC", conn)
+                clientes_lista = carregar_clientes()[["id","nome"]]
                 if not clientes_lista.empty:
                     dict_clientes = {row['nome']: row['id'] for _, row in clientes_lista.iterrows()}
                     lista_nomes = list(dict_clientes.keys())
@@ -990,16 +1021,17 @@ elif menu == "Clientes":
                         disabled=True
                     )
                     id_gerenciar = dict_clientes[cliente_gerenciar]
-                    dados_atuais = cursor.execute("SELECT nome, whatsapp FROM clientes WHERE id = ?", (id_gerenciar,)).fetchone()
+                    _dc = sb_fetch_one("clientes", {"id": id_gerenciar})
+                    dados_atuais = (_dc["nome"], _dc["whatsapp"]) if _dc else None
                     
                     st.markdown(f"📊 **Histórico de Serviços de {dados_atuais[0]}:**")
                     try:
-                        df_historico_cli = pd.read_sql_query("""
-                            SELECT id as 'Nº OS', servico_nome as 'Serviços', valor_total as 'Total (R$)', (valor_total - valor_sinal) as 'Saldo Devedor', prazo_entrega as 'Entrega', status as 'Status'
-                            FROM ordens_servico 
-                            WHERE cliente_id = ?
-                            ORDER BY id DESC
-                        """, conn, params=(id_gerenciar,))
+                        _hcli = sb_query("ordens_servico", filters={"cliente_id": int(id_gerenciar)}, order="id")
+                        if not _hcli.empty:
+                            _hcli["Saldo Devedor"] = _hcli["valor_total"] - _hcli["valor_sinal"]
+                            df_historico_cli = _hcli.sort_values("id", ascending=False).rename(columns={"id":"Nº OS","servico_nome":"Serviços","valor_total":"Total (R$)","prazo_entrega":"Entrega","status":"Status"})[["Nº OS","Serviços","Total (R$)","Saldo Devedor","Entrega","Status"]]
+                        else:
+                            df_historico_cli = pd.DataFrame()
                         
                         if df_historico_cli.empty:
                             st.caption("Nenhum serviço registrado para este cliente.")
@@ -1020,8 +1052,8 @@ elif menu == "Clientes":
                     with c_edit:
                         if st.button("Salvar Alteração ✅", use_container_width=True):
                             if senha_cliente == SENHA_MASTER:
-                                cursor.execute("UPDATE clientes SET nome = ?, whatsapp = ? WHERE id = ?", (novo_nome.strip(), novo_whats.strip(), id_gerenciar))
-                                conn.commit()
+                                invalidar_cache()
+                                sb_update("clientes", {"nome": novo_nome.strip(), "whatsapp": novo_whats.strip()}, "id", id_gerenciar)
                                 st.success("✅ Cadastro atualizado com sucesso!")
                                 st.session_state.versao_senha_cli += 1
                                 st.rerun()
@@ -1030,9 +1062,9 @@ elif menu == "Clientes":
                     with c_del:
                         if st.button("Excluir Cliente ❌", type="secondary", use_container_width=True):
                             if senha_cliente == SENHA_MASTER:
-                                cursor.execute("DELETE FROM clientes WHERE id = ?", (id_gerenciar,))
-                                cursor.execute("DELETE FROM ordens_servico WHERE cliente_id = ?", (id_gerenciar,))
-                                conn.commit()
+                                invalidar_cache()
+                                sb_delete("clientes", "id", id_gerenciar)
+                                sb_delete("ordens_servico", "cliente_id", id_gerenciar)
                                 st.warning("Cliente e suas OS foram excluídos!")
                                 st.session_state.versao_senha_cli += 1
                                 st.rerun()
@@ -1083,7 +1115,11 @@ elif menu == "Painel de Trabalho (Kanban)":
             FROM ordens_servico os JOIN clientes c ON os.cliente_id = c.id 
             WHERE os.status != 'Entregue'
         """
-        df_os = pd.read_sql_query(query_base, conn)
+        _df_k = carregar_ordens().copy()
+        _df_kc = carregar_clientes()
+        if not _df_k.empty and not _df_kc.empty:
+            _df_k = _df_k.merge(_df_kc.rename(columns={"id":"cliente_id","nome":"nome_cliente"}), on="cliente_id", how="left")
+        df_os = _df_k if not _df_k.empty else pd.DataFrame()
     except:
         df_os = pd.DataFrame()
         
@@ -1123,8 +1159,8 @@ elif menu == "Painel de Trabalho (Kanban)":
                     st.markdown(f"<small>⏱️ Aberta: {os_data['horario_pedido']}<br>📅 Limite: {os_data['prazo_entrega']}</small>", unsafe_allow_html=True)
                     
                     if st.button("Começar 🧵", key=f"ini_{os_data['id']}", use_container_width=True):
-                        cursor.execute("UPDATE ordens_servico SET status = 'Em Andamento' WHERE id = ?", (os_data['id'],))
-                        conn.commit()
+                        invalidar_cache()
+                        sb_update('ordens_servico', {'status': 'Em Andamento'}, 'id', os_data['id'])
                         st.rerun()
                       
     with col_andamento:
@@ -1140,8 +1176,8 @@ elif menu == "Painel de Trabalho (Kanban)":
                     st.markdown(f"<small>⏱️ Aberta: {os_data['horario_pedido']}<br>📅 Limite: {os_data['prazo_entrega']}</small>", unsafe_allow_html=True)
                     
                     if st.button("Pronto ✅", key=f"and_{os_data['id']}", use_container_width=True):
-                        cursor.execute("UPDATE ordens_servico SET status = 'Finalizado' WHERE id = ?", (os_data['id'],))
-                        conn.commit()
+                        invalidar_cache()
+                        sb_update('ordens_servico', {'status': 'Finalizado'}, 'id', os_data['id'])
                         st.rerun()
                        
     with col_pronto:
@@ -1208,8 +1244,8 @@ Obrigada pela preferência e confiança em nosso trabalho!
                     st.components.v1.html(html_botao_whats, height=50)
                     
                     if st.button("Mover p/ Avisados 📱", key=f"avi_{os_data['id']}", use_container_width=True, type="primary"):
-                        cursor.execute("UPDATE ordens_servico SET status = 'Avisado' WHERE id = ?", (os_data['id'],))
-                        conn.commit()
+                        invalidar_cache()
+                        sb_update('ordens_servico', {'status': 'Avisado'}, 'id', os_data['id'])
                         st.rerun()
       
     with col_avisado:
@@ -1241,8 +1277,7 @@ Obrigada pela preferência e confiança em nosso trabalho!
                             meio_quitacao = st.selectbox("Forma Restante", ["Pix", "Dinheiro", "Cartão"], key=f"q_avis_meio_{os_data['id']}", label_visibility="collapsed")
                         with col_q2:
                             if st.button("Quitar 💵", key=f"btn_q_avis_{os_data['id']}", use_container_width=True):
-                                cursor.execute("UPDATE ordens_servico SET valor_sinal = valor_total, forma_restante = ? WHERE id = ?", (meio_quitacao, os_data['id']))
-                                conn.commit()
+                                sb_update('ordens_servico', {'valor_sinal': os_data['valor_total'], 'forma_restante': meio_quitacao}, 'id', os_data['id'])
                                 st.rerun()
                                 
                     st.write("---")
@@ -1251,12 +1286,7 @@ Obrigada pela preferência e confiança em nosso trabalho!
                         forma_final = meio_quitacao if saldo > 0 else "Quitado"
                         sinal_final = os_data['valor_total'] if saldo > 0 else os_data['valor_sinal']
                         
-                        cursor.execute("""
-                            UPDATE ordens_servico 
-                            SET status = 'Entregue', valor_sinal = ?, forma_restante = ? 
-                            WHERE id = ?
-                        """, (sinal_final, forma_final, os_data['id']))
-                        conn.commit()
+                        sb_update('ordens_servico', {'status': 'Entregue', 'valor_sinal': sinal_final, 'forma_restante': forma_final}, 'id', os_data['id'])
                         st.rerun()
 
 # ==========================================
@@ -1274,9 +1304,12 @@ elif menu == "Catálogo de Serviços":
             busca_serv = st.text_input("Buscar serviço por nome...")
             
             if busca_serv:
-                df_servicos_lista = pd.read_sql_query("SELECT id as 'Código', nome as 'Serviço', preco as 'Preço Base (R$)' FROM servicos WHERE nome LIKE ? ORDER BY nome ASC", conn, params=(f"%{busca_serv}%",))
+                _dfs = carregar_servicos()
+                if busca_serv:
+                    _dfs = _dfs[_dfs["nome"].str.contains(busca_serv, case=False, na=False)]
+                df_servicos_lista = _dfs.rename(columns={"id":"Código","nome":"Serviço","preco":"Preço Base (R$)"}) if not _dfs.empty else pd.DataFrame()
             else:
-                df_servicos_lista = pd.read_sql_query("SELECT id as 'Código', nome as 'Serviço', preco as 'Preço Base (R$)' FROM servicos ORDER BY nome ASC", conn)
+                df_servicos_lista = carregar_servicos().rename(columns={"id":"Código","nome":"Serviço","preco":"Preço Base (R$)"})
             
             selecao_servicos = st.dataframe(
                 df_servicos_lista, 
@@ -1296,8 +1329,8 @@ elif menu == "Catálogo de Serviços":
             novo_preco = st.number_input("Preço Sugerido (R$)", min_value=0.0, format="%.2f")
             if st.button("Adicionar", type="primary", use_container_width=True):
                 if novo_servico:
-                    cursor.execute("INSERT INTO servicos (nome, preco) VALUES (?, ?)", (novo_servico, novo_preco))
-                    conn.commit()
+                    invalidar_cache()
+                    sb_insert("servicos", {"nome": novo_servico, "preco": novo_preco})
                     st.success("Adicionado com sucesso!")
                     st.rerun()
                 else:
@@ -1309,7 +1342,8 @@ elif menu == "Catálogo de Serviços":
             if servico_clicado_id is None:
                 st.info("💡 Selecione um serviço na tabela ao lado para editar ou excluir seu cadastro.")
             else:
-                dados_serv_atual = cursor.execute("SELECT nome, preco FROM servicos WHERE id = ?", (servico_clicado_id,)).fetchone()
+                _ds = sb_fetch_one("servicos", {"id": servico_clicado_id})
+                dados_serv_atual = (_ds["nome"], _ds["preco"]) if _ds else None
                 
                 st.markdown(f"✏️ **Modificando:** {dados_serv_atual[0]}")
                 alterar_nome_serv = st.text_input("Alterar Nome do Serviço", value=dados_serv_atual[0])
@@ -1323,8 +1357,8 @@ elif menu == "Catálogo de Serviços":
                     if st.button("Salvar Alteração ✅", key="btn_edit_serv", use_container_width=True):
                         if senha_servico == SENHA_MASTER:
                             if alterar_nome_serv:
-                                cursor.execute("UPDATE servicos SET nome = ?, preco = ? WHERE id = ?", (alterar_nome_serv.strip(), alterar_preco_serv, servico_clicado_id))
-                                conn.commit()
+                                invalidar_cache()
+                                sb_update("servicos", {"nome": alterar_nome_serv.strip(), "preco": alterar_preco_serv}, "id", servico_clicado_id)
                                 st.success("Serviço atualizado!")
                                 st.session_state.versao_senha_serv += 1
                                 st.rerun()
@@ -1336,8 +1370,8 @@ elif menu == "Catálogo de Serviços":
                 with c_del_s:
                     if st.button("Excluir Serviço ❌", key="btn_del_serv", type="secondary", use_container_width=True):
                         if senha_servico == SENHA_MASTER:
-                            cursor.execute("DELETE FROM servicos WHERE id = ?", (servico_clicado_id,))
-                            conn.commit()
+                            invalidar_cache()
+                            sb_delete("servicos", "id", servico_clicado_id)
                             st.warning("Serviço excluído do catálogo!")
                             st.session_state.versao_senha_serv += 1
                             st.rerun()
@@ -1373,7 +1407,14 @@ elif menu == "Registrar Despesa":
         params_desp.append(filtro_status)
         
     query_desp += " ORDER BY data DESC, id DESC"
-    df_despesas_filtradas = pd.read_sql_query(query_desp, conn, params=params_desp)
+    _dfd = sb_query("despesas", order="data")
+    if not _dfd.empty:
+        if data_ini_desp and data_fim_desp:
+            _dfd = _dfd[(_dfd["data"] >= data_ini_desp.strftime('%Y-%m-%d')) & (_dfd["data"] <= data_fim_desp.strftime('%Y-%m-%d'))]
+        if filtro_status_desp != "Todas":
+            _dfd = _dfd[_dfd["status"] == filtro_status_desp]
+        _dfd = _dfd.sort_values("data", ascending=False)
+    df_despesas_filtradas = _dfd
 
     total_pago = 0.0
     total_pendente = 0.0
@@ -1410,11 +1451,11 @@ elif menu == "Registrar Despesa":
             
             if st.button("Lançar no Caixa 💸", type="primary", use_container_width=True):
                 if desc and val > 0:
-                    cursor.execute(
-                        "INSERT INTO despesas (descricao, valor, data, category, tipo, status) VALUES (?, ?, ?, ?, ?, ?)", 
-                        (desc.strip(), val, data_gasto.strftime('%Y-%m-%d'), cat, tipo_gasto, status_gasto)
-                    )
-                    conn.commit()
+                    sb_insert("despesas", {
+                        "descricao": desc.strip(), "valor": val,
+                        "data": data_gasto.strftime('%Y-%m-%d'), "category": cat,
+                        "tipo": tipo_gasto, "status": status_gasto
+                    })
                     st.success("Despesa registrada com sucesso!")
                     st.rerun()
                 else:
@@ -1444,7 +1485,8 @@ elif menu == "Registrar Despesa":
         if despesa_clicada_id is not None:
             with st.container(border=True):
                 st.subheader("⚙️ Gerenciar Conta Selecionada")
-                dados_d_atual = cursor.execute("SELECT descricao, valor, status FROM despesas WHERE id = ?", (despesa_clicada_id,)).fetchone()
+                _dd = sb_fetch_one("despesas", {"id": despesa_clicada_id})
+                dados_d_atual = (_dd["descricao"], _dd["valor"], _dd["status"]) if _dd else None
                 
                 st.markdown(f"**Item:** {dados_d_atual[0]} | **Valor:** R$ {dados_d_atual[1]:.2f} | **Status:** `{dados_d_atual[2]}`")
                 
@@ -1456,8 +1498,7 @@ elif menu == "Registrar Despesa":
                     pode_dar_baixa = dados_d_atual[2] == "Pendente / Agendada"
                     if st.button("Confirmar Pagamento (Dar Baixa) 💵", use_container_width=True, type="primary", disabled=not pode_dar_baixa):
                         if senha_despesa == SENHA_MASTER:
-                            cursor.execute("UPDATE despesas SET status = 'Paga', data = ? WHERE id = ?", (datetime.today().strftime('%Y-%m-%d'), despesa_clicada_id))
-                            conn.commit()
+                            sb_update("despesas", {"status": "Paga", "data": datetime.today().strftime("%Y-%m-%d")}, "id", despesa_clicada_id)
                             st.success("Conta baixada com sucesso como PAGA!")
                             st.session_state.versao_senha_desp += 1
                             st.rerun()
@@ -1467,8 +1508,7 @@ elif menu == "Registrar Despesa":
                 with b_excluir:
                     if st.button("Excluir Lançamento ❌", use_container_width=True):
                         if senha_despesa == SENHA_MASTER:
-                            cursor.execute("DELETE FROM despesas WHERE id = ?", (despesa_clicada_id,))
-                            conn.commit()
+                            sb_delete("despesas", "id", despesa_clicada_id)
                             st.warning("Lançamento de gasto removido do caixa!")
                             st.session_state.versao_senha_desp += 1
                             st.rerun()
@@ -1482,12 +1522,15 @@ elif menu == "Gráficos & Financeiro":
     st.title("📊 Painel Financeiro")
 
     # Apenas OS com status 'Entregue' representam receita realizada
-    total_entradas = float(pd.read_sql_query("SELECT SUM(valor_total) as total FROM ordens_servico WHERE status = 'Entregue'", conn)['total'].fillna(0).values[0])
-    total_saidas = float(pd.read_sql_query("SELECT SUM(valor) as total FROM despesas WHERE status = 'Paga'", conn)['total'].fillna(0).values[0])
+    _df_ent = sb_query("ordens_servico", filters={"status": "Entregue"}, select="valor_total")
+    total_entradas = float(_df_ent["valor_total"].sum()) if not _df_ent.empty else 0.0
+    _df_sai = sb_query("despesas", filters={"status": "Paga"}, select="valor")
+    total_saidas = float(_df_sai["valor"].sum()) if not _df_sai.empty else 0.0
     lucro = total_entradas - total_saidas
 
     # OS ativas que ainda não foram entregues (receita pendente / a receber)
-    total_pendente_os = float(pd.read_sql_query("SELECT SUM(valor_total) as total FROM ordens_servico WHERE status != 'Entregue'", conn)['total'].fillna(0).values[0])
+    _df_pend = sb_query("ordens_servico", select="valor_total,status")
+    total_pendente_os = float(_df_pend[_df_pend["status"] != "Entregue"]["valor_total"].sum()) if not _df_pend.empty else 0.0
 
     with st.container(border=True):
         c1, c2, c3, c4 = st.columns(4)
@@ -1500,7 +1543,8 @@ elif menu == "Gráficos & Financeiro":
     
     with st.container(border=True):
         st.subheader("💳 Faturamento por Meio de Pagamento (Sinal)")
-        df_meios_sinal = pd.read_sql_query("SELECT forma_sinal as Meio, SUM(valor_sinal) as Total FROM ordens_servico GROUP BY forma_sinal", conn)
+        _dfms = sb_query("ordens_servico", select="forma_sinal,valor_sinal")
+        df_meios_sinal = _dfms.groupby("forma_sinal")["valor_sinal"].sum().reset_index().rename(columns={"forma_sinal":"Meio","valor_sinal":"Total"}) if not _dfms.empty else pd.DataFrame()
         st.dataframe(df_meios_sinal, use_container_width=True, hide_index=True)
     
     with st.container(border=True):
@@ -1546,88 +1590,52 @@ elif menu == "Gráficos & Financeiro":
             fim_br     = export_fim.strftime('%d/%m/%Y')
 
             # --- Ordens de Serviço ---
-            df_os_exp = pd.read_sql_query("""
-                SELECT
-                    os.id                          AS "Nº OS",
-                    c.nome                         AS "Cliente",
-                    c.whatsapp                     AS "WhatsApp",
-                    os.servico_nome                AS "Serviços",
-                    os.detalhes                    AS "Detalhes",
-                    os.qtd_pecas                   AS "Qtd Peças",
-                    os.prioridade                  AS "Prioridade",
-                    os.atendente_nome              AS "Atendente",
-                    os.horario_pedido              AS "Data/Hora Abertura",
-                    os.prazo_entrega               AS "Prazo Entrega",
-                    os.status                      AS "Status",
-                    os.valor_total                 AS "Valor Total (R$)",
-                    os.valor_sinal                 AS "Sinal Pago (R$)",
-                    (os.valor_total - os.valor_sinal) AS "Saldo Restante (R$)",
-                    os.forma_sinal                 AS "Forma Pagto Sinal",
-                    os.forma_restante              AS "Forma Pagto Restante"
-                FROM ordens_servico os
-                JOIN clientes c ON os.cliente_id = c.id
-                WHERE substr(os.horario_pedido, 7, 4) || '-'
-                      || substr(os.horario_pedido, 4, 2) || '-'
-                      || substr(os.horario_pedido, 1, 2)
-                      BETWEEN ? AND ?
-                ORDER BY os.id DESC
-            """, conn, params=(inicio_str, fim_str))
-
-            # Fallback: se a query de data não retornar nada (datas no formato diferente), traz tudo
-            if df_os_exp.empty:
-                df_os_exp = pd.read_sql_query("""
-                    SELECT
-                        os.id AS "Nº OS", c.nome AS "Cliente", c.whatsapp AS "WhatsApp",
-                        os.servico_nome AS "Serviços", os.detalhes AS "Detalhes",
-                        os.qtd_pecas AS "Qtd Peças", os.prioridade AS "Prioridade",
-                        os.horario_pedido AS "Data/Hora Abertura", os.prazo_entrega AS "Prazo Entrega",
-                        os.status AS "Status", os.valor_total AS "Valor Total (R$)",
-                        os.valor_sinal AS "Sinal Pago (R$)",
-                        (os.valor_total - os.valor_sinal) AS "Saldo Restante (R$)",
-                        os.forma_sinal AS "Forma Pagto Sinal", os.forma_restante AS "Forma Pagto Restante"
-                    FROM ordens_servico os
-                    JOIN clientes c ON os.cliente_id = c.id
-                    ORDER BY os.id DESC
-                """, conn)
+            _exp_os = sb_query("ordens_servico", order="id")
+            _exp_cli = sb_query("clientes")
+            if not _exp_os.empty and not _exp_cli.empty:
+                _exp_os = _exp_os.merge(_exp_cli.rename(columns={"id":"cliente_id","nome":"Cliente","whatsapp":"WhatsApp"}), on="cliente_id", how="left")
+                _exp_os["Saldo Restante (R$)"] = _exp_os["valor_total"] - _exp_os["valor_sinal"]
+                _exp_os = _exp_os.sort_values("id", ascending=False)
+                if inicio_str and fim_str:
+                    _exp_os = _exp_os[(_exp_os["horario_pedido"].str[-10:] >= inicio_str) | (_exp_os["horario_pedido"] >= inicio_str)]
+                df_os_exp = _exp_os.rename(columns={
+                    "id":"Nº OS","servico_nome":"Serviços","detalhes":"Detalhes",
+                    "qtd_pecas":"Qtd Peças","prioridade":"Prioridade","atendente_nome":"Atendente",
+                    "horario_pedido":"Data/Hora Abertura","prazo_entrega":"Prazo Entrega",
+                    "status":"Status","valor_total":"Valor Total (R$)","valor_sinal":"Sinal Pago (R$)",
+                    "forma_sinal":"Forma Pagto Sinal","forma_restante":"Forma Pagto Restante"
+                })
+            else:
+                df_os_exp = pd.DataFrame()
 
             # --- Faturamento por OS Entregue ---
             df_fat_exp = df_os_exp[df_os_exp["Status"] == "Entregue"].copy() if not df_os_exp.empty else pd.DataFrame()
 
             # --- Clientes ---
-            df_cli_exp = pd.read_sql_query("""
-                SELECT
-                    c.id        AS "Código",
-                    c.nome      AS "Nome",
-                    c.whatsapp  AS "WhatsApp",
-                    COUNT(os.id)        AS "Total de OS",
-                    SUM(os.valor_total) AS "Total Gasto (R$)"
-                FROM clientes c
-                LEFT JOIN ordens_servico os ON os.cliente_id = c.id
-                GROUP BY c.id
-                ORDER BY c.nome ASC
-            """, conn)
+            _exp_cli2 = sb_query("clientes", order="nome")
+            _exp_os2 = sb_query("ordens_servico", select="cliente_id,valor_total")
+            if not _exp_cli2.empty:
+                if not _exp_os2.empty:
+                    _grp = _exp_os2.groupby("cliente_id").agg(total_os=("valor_total","count"), total_gasto=("valor_total","sum")).reset_index()
+                    _exp_cli2 = _exp_cli2.merge(_grp.rename(columns={"cliente_id":"id"}), on="id", how="left")
+                    _exp_cli2["total_os"] = _exp_cli2["total_os"].fillna(0).astype(int)
+                    _exp_cli2["total_gasto"] = _exp_cli2["total_gasto"].fillna(0)
+                df_cli_exp = _exp_cli2.rename(columns={"id":"Código","nome":"Nome","whatsapp":"WhatsApp","total_os":"Total de OS","total_gasto":"Total Gasto (R$)"})
+            else:
+                df_cli_exp = pd.DataFrame()
 
             # --- Despesas ---
-            df_desp_exp = pd.read_sql_query("""
-                SELECT
-                    id          AS "ID",
-                    data        AS "Data",
-                    descricao   AS "Descrição",
-                    valor       AS "Valor (R$)",
-                    category    AS "Categoria",
-                    tipo        AS "Tipo",
-                    status      AS "Status"
-                FROM despesas
-                WHERE data BETWEEN ? AND ?
-                ORDER BY data DESC
-            """, conn, params=(inicio_str, fim_str))
-            if not df_desp_exp.empty:
-                df_desp_exp["Data"] = pd.to_datetime(df_desp_exp["Data"]).dt.strftime('%d/%m/%Y')
+            _exp_desp = sb_query("despesas", order="data")
+            if not _exp_desp.empty:
+                _exp_desp = _exp_desp[(_exp_desp["data"] >= inicio_str) & (_exp_desp["data"] <= fim_str)]
+                _exp_desp = _exp_desp.sort_values("data", ascending=False)
+                _exp_desp["data"] = pd.to_datetime(_exp_desp["data"]).dt.strftime('%d/%m/%Y')
+                df_desp_exp = _exp_desp.rename(columns={"id":"ID","data":"Data","descricao":"Descrição","valor":"Valor (R$)","category":"Categoria","tipo":"Tipo","status":"Status"})
+            else:
+                df_desp_exp = pd.DataFrame()
 
             # --- Catálogo de Serviços ---
-            df_serv_exp = pd.read_sql_query("""
-                SELECT nome AS "Serviço", preco AS "Preço Base (R$)" FROM servicos ORDER BY nome ASC
-            """, conn)
+            df_serv_exp = sb_query("servicos", order="nome").rename(columns={"nome":"Serviço","preco":"Preço Base (R$)"})
 
             # --- Resumo Financeiro ---
             total_fat   = float(df_fat_exp["Valor Total (R$)"].sum()) if not df_fat_exp.empty else 0.0
@@ -1683,17 +1691,19 @@ elif menu == "Funcionários":
             if not novo_func.strip():
                 st.error("❌ Digite o nome do funcionário.")
             else:
-                existente = cursor.execute("SELECT id FROM funcionarios WHERE nome = ?", (novo_func.strip(),)).fetchone()
+                _ef = sb_query("funcionarios", filters={"nome": novo_func.strip()})
+                existente = _ef.iloc[0]["id"] if not _ef.empty else None
                 if existente:
                     st.warning(f"⚠️ '{novo_func.strip()}' já está cadastrado.")
                 else:
-                    cursor.execute("INSERT INTO funcionarios (nome) VALUES (?)", (novo_func.strip(),))
-                    conn.commit()
+                    invalidar_cache()
+                    sb_insert("funcionarios", {"nome": novo_func.strip()})
                     st.success(f"✅ '{novo_func.strip()}' cadastrado com sucesso!")
                     st.rerun()
 
     # --- Lista ---
-    funcionarios_db = cursor.execute("SELECT id, nome FROM funcionarios ORDER BY nome ASC").fetchall()
+    _fdf = carregar_funcionarios()
+    funcionarios_db = list(zip(_fdf["id"].tolist(), _fdf["nome"].tolist())) if not _fdf.empty else []
 
     if not funcionarios_db:
         st.info("Nenhum funcionário cadastrado ainda.")
@@ -1706,7 +1716,7 @@ elif menu == "Funcionários":
                     st.markdown(f"👤 **{func_nome}**")
                 with col_btn:
                     if st.button("🗑️ Remover", key=f"del_func_{func_id}"):
-                        cursor.execute("DELETE FROM funcionarios WHERE id = ?", (func_id,))
-                        conn.commit()
+                        invalidar_cache()
+                        sb_delete("funcionarios", "id", func_id)
                         st.success(f"'{func_nome}' removido.")
                         st.rerun()
