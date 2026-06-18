@@ -421,33 +421,6 @@ def sb_fetch_one(table, filters):
         return df.iloc[0].to_dict()
     return None
 
-@st.cache_data(ttl=300)
-def carregar_servicos():
-    """Cache de serviços por 5 minutos — raramente mudam."""
-    return sb_query("servicos", order="nome")
-
-@st.cache_data(ttl=300)
-def carregar_funcionarios():
-    """Cache de funcionários por 5 minutos — raramente mudam."""
-    return sb_query("funcionarios", order="nome")
-
-@st.cache_data(ttl=30)
-def carregar_clientes():
-    """Cache de clientes por 30 segundos."""
-    return sb_query("clientes", order="nome")
-
-@st.cache_data(ttl=15)
-def carregar_ordens():
-    """Cache de OS por 15 segundos."""
-    return sb_query("ordens_servico", order="id")
-
-def invalidar_cache():
-    """Limpa todos os caches após alterações."""
-    carregar_servicos.clear()
-    carregar_funcionarios.clear()
-    carregar_clientes.clear()
-    carregar_ordens.clear()
-
 # Tabelas já criadas no Supabase via SQL Editor
 
 if "versao_senha_os" not in st.session_state:
@@ -497,14 +470,15 @@ menu = st.sidebar.radio("Ir para:", [
 if menu == "Nova OS":
     st.title("➕ Abertura de Nova Ordem de Serviço")
     
-    df_max = carregar_ordens()
+    df_max = sb_query("ordens_servico", select="id")
     ultimo_id = int(df_max["id"].max()) if not df_max.empty and not df_max["id"].isna().all() else 0
     proxima_os = (ultimo_id + 1) if ultimo_id is not None else 1
     
     st.info(f"📋 **Você está preenchendo a Ordem de Serviço Nº: #{proxima_os}**")
     
-    clientes_df = carregar_clientes()
-    servicos_df = carregar_servicos()[["nome","preco"]]
+    clientes_df = sb_query("clientes", order="nome")
+    _sf = sb_query("servicos", order="nome")
+    servicos_df = _sf[["nome","preco"]] if not _sf.empty else pd.DataFrame(columns=["nome","preco"])
 
     v = st.session_state.versao_nova_os
 
@@ -569,8 +543,7 @@ if menu == "Nova OS":
             detalhes = st.text_area("Detalhes / Observações do Ajuste", value="", key=f"detalhes_{v}")
             
             st.write("---")
-            _df_func = carregar_funcionarios()
-            funcionarios_lista = _df_func["nome"].tolist() if not _df_func.empty else []
+            funcionarios_lista = sb_query("funcionarios", order="nome")["nome"].tolist() if not sb_query("funcionarios", order="nome").empty else []
             if funcionarios_lista:
                 atendente_selecionado = st.selectbox("👤 Atendente (quem está abrindo a OS)", ["— Selecione —"] + funcionarios_lista, key=f"atend_{v}")
                 atendente_nome = atendente_selecionado if atendente_selecionado != "— Selecione —" else ""
@@ -631,7 +604,6 @@ if menu == "Nova OS":
                 resta_pagar_calc = valor_final - valor_sinal
                 forma_restante_db = "Quitado" if resta_pagar_calc <= 0 else forma_restante
 
-                invalidar_cache()
                 os_id = sb_insert("ordens_servico", {
                     "cliente_id": cliente_id, "servico_nome": texto_servicos_db, "detalhes": detalhes,
                     "valor_total": valor_final, "valor_sinal": valor_sinal, "prazo_entrega": prazo_formatated,
@@ -792,8 +764,8 @@ elif menu == "Consultar / Editar OS":
 
     with aba_ativas:
         try:
-            _df_os_a = carregar_ordens().copy()
-            _df_cli_a = carregar_clientes()
+            _df_os_a = sb_query("ordens_servico", order="id")
+            _df_cli_a = sb_query("clientes")
             if not _df_os_a.empty and not _df_cli_a.empty:
                 _df_os_a = _df_os_a.merge(_df_cli_a.rename(columns={"id":"cliente_id","nome":"Cliente","whatsapp":"whatsapp"}), on="cliente_id", how="left")
             _df_os_a = _df_os_a[_df_os_a["status"] != "Entregue"] if not _df_os_a.empty else _df_os_a
@@ -828,8 +800,8 @@ elif menu == "Consultar / Editar OS":
 
     with aba_entregues:
         try:
-            _df_os_e = carregar_ordens().copy()
-            _df_cli_e = carregar_clientes()
+            _df_os_e = sb_query("ordens_servico", order="id")
+            _df_cli_e = sb_query("clientes")
             if not _df_os_e.empty and not _df_cli_e.empty:
                 _df_os_e = _df_os_e.merge(_df_cli_e.rename(columns={"id":"cliente_id","nome":"Cliente","whatsapp":"whatsapp"}), on="cliente_id", how="left")
             _df_os_e = _df_os_e[_df_os_e["status"] == "Entregue"] if not _df_os_e.empty else _df_os_e
@@ -870,8 +842,8 @@ elif menu == "Consultar / Editar OS":
             st.info("💡 Clique em cima de qualquer Ordem de Serviço nas tabelas superiores para liberar a consulta e alteração dos dados.")
         else:
             try:
-                _df_ed = carregar_ordens().copy()
-                _df_cli_ed = carregar_clientes()
+                _df_ed = sb_query("ordens_servico", order="id")
+                _df_cli_ed = sb_query("clientes")
                 if not _df_ed.empty and not _df_cli_ed.empty:
                     _df_ed = _df_ed.merge(_df_cli_ed.rename(columns={"id":"cliente_id","nome":"Cliente"}), on="cliente_id", how="left")
                     _df_ed = _df_ed.sort_values("id", ascending=False)
@@ -932,7 +904,6 @@ elif menu == "Consultar / Editar OS":
                                 "prazo_entrega": novo_prazo, "status": novo_status, "horario_pedido": novo_hora_ped,
                                 "forma_sinal": novo_forma_sinal, "forma_restante": f_restante
                             }, "id", id_os)
-                            invalidar_cache()
                             st.success(f"✅ OS #{id_os} atualizada com sucesso!")
                             st.session_state.versao_senha_os += 1
                             st.rerun()
@@ -941,7 +912,6 @@ elif menu == "Consultar / Editar OS":
                 with col_b2:
                     if st.button("Excluir / Cancelar OS ❌", use_container_width=True):
                         if senha_digitada == SENHA_MASTER:
-                            invalidar_cache()
                             sb_delete("ordens_servico", "id", id_os)
                             st.warning(f"OS #{id_os} apagada!")
                             st.session_state.versao_senha_os += 1
@@ -963,9 +933,9 @@ elif menu == "Clientes":
             st.subheader("🔍 Lista Geral de Clientes")
             busca = st.text_input("Buscar cliente por nome...")
             if busca:
-                dados_clientes = carregar_clientes().rename(columns={"id":"Código","nome":"Nome","whatsapp":"WhatsApp"}).loc[lambda df: df["Nome"].str.contains(busca, case=False, na=False)]
+                dados_clientes = sb_query("clientes", order="nome").rename(columns={"id":"Código","nome":"Nome","whatsapp":"WhatsApp"}).loc[lambda df: df["Nome"].str.contains(busca, case=False, na=False)]
             else:
-                dados_clientes = carregar_clientes().rename(columns={"id":"Código","nome":"Nome","whatsapp":"WhatsApp"})
+                dados_clientes = sb_query("clientes", order="nome").rename(columns={"id":"Código","nome":"Nome","whatsapp":"WhatsApp"})
             
             selecao_clientes = st.dataframe(
                 dados_clientes, 
@@ -991,7 +961,6 @@ elif menu == "Clientes":
                         st.error("⚠️ Este nome de cliente já está cadastrado!")
                     else:
                         sb_insert("clientes", {"nome": nome_cliente.strip(), "whatsapp": whatsapp_cliente.strip()})
-                        invalidar_cache()
                         st.success("Cliente salva com sucesso!")
                         st.rerun()
                 else:
@@ -1003,7 +972,7 @@ elif menu == "Clientes":
             if cliente_clicado_id is None:
                 st.info("💡 Selecione um cliente na tabela ao lado para gerenciar seu cadastro e ver o histórico de ordens.")
             else:
-                clientes_lista = carregar_clientes()[["id","nome"]]
+                clientes_lista = sb_query("clientes", order="nome")[["id","nome"]]
                 if not clientes_lista.empty:
                     dict_clientes = {row['nome']: row['id'] for _, row in clientes_lista.iterrows()}
                     lista_nomes = list(dict_clientes.keys())
@@ -1052,7 +1021,6 @@ elif menu == "Clientes":
                     with c_edit:
                         if st.button("Salvar Alteração ✅", use_container_width=True):
                             if senha_cliente == SENHA_MASTER:
-                                invalidar_cache()
                                 sb_update("clientes", {"nome": novo_nome.strip(), "whatsapp": novo_whats.strip()}, "id", id_gerenciar)
                                 st.success("✅ Cadastro atualizado com sucesso!")
                                 st.session_state.versao_senha_cli += 1
@@ -1062,7 +1030,6 @@ elif menu == "Clientes":
                     with c_del:
                         if st.button("Excluir Cliente ❌", type="secondary", use_container_width=True):
                             if senha_cliente == SENHA_MASTER:
-                                invalidar_cache()
                                 sb_delete("clientes", "id", id_gerenciar)
                                 sb_delete("ordens_servico", "cliente_id", id_gerenciar)
                                 st.warning("Cliente e suas OS foram excluídos!")
@@ -1115,8 +1082,8 @@ elif menu == "Painel de Trabalho (Kanban)":
             FROM ordens_servico os JOIN clientes c ON os.cliente_id = c.id 
             WHERE os.status != 'Entregue'
         """
-        _df_k = carregar_ordens().copy()
-        _df_kc = carregar_clientes()
+        _df_k = sb_query("ordens_servico", order="id")
+        _df_kc = sb_query("clientes")
         if not _df_k.empty and not _df_kc.empty:
             _df_k = _df_k.merge(_df_kc.rename(columns={"id":"cliente_id","nome":"nome_cliente"}), on="cliente_id", how="left")
         df_os = _df_k if not _df_k.empty else pd.DataFrame()
@@ -1159,7 +1126,6 @@ elif menu == "Painel de Trabalho (Kanban)":
                     st.markdown(f"<small>⏱️ Aberta: {os_data['horario_pedido']}<br>📅 Limite: {os_data['prazo_entrega']}</small>", unsafe_allow_html=True)
                     
                     if st.button("Começar 🧵", key=f"ini_{os_data['id']}", use_container_width=True):
-                        invalidar_cache()
                         sb_update('ordens_servico', {'status': 'Em Andamento'}, 'id', os_data['id'])
                         st.rerun()
                       
@@ -1176,7 +1142,6 @@ elif menu == "Painel de Trabalho (Kanban)":
                     st.markdown(f"<small>⏱️ Aberta: {os_data['horario_pedido']}<br>📅 Limite: {os_data['prazo_entrega']}</small>", unsafe_allow_html=True)
                     
                     if st.button("Pronto ✅", key=f"and_{os_data['id']}", use_container_width=True):
-                        invalidar_cache()
                         sb_update('ordens_servico', {'status': 'Finalizado'}, 'id', os_data['id'])
                         st.rerun()
                        
@@ -1244,7 +1209,6 @@ Obrigada pela preferência e confiança em nosso trabalho!
                     st.components.v1.html(html_botao_whats, height=50)
                     
                     if st.button("Mover p/ Avisados 📱", key=f"avi_{os_data['id']}", use_container_width=True, type="primary"):
-                        invalidar_cache()
                         sb_update('ordens_servico', {'status': 'Avisado'}, 'id', os_data['id'])
                         st.rerun()
       
@@ -1304,12 +1268,12 @@ elif menu == "Catálogo de Serviços":
             busca_serv = st.text_input("Buscar serviço por nome...")
             
             if busca_serv:
-                _dfs = carregar_servicos()
+                _dfs = sb_query("servicos", order="nome")
                 if busca_serv:
                     _dfs = _dfs[_dfs["nome"].str.contains(busca_serv, case=False, na=False)]
                 df_servicos_lista = _dfs.rename(columns={"id":"Código","nome":"Serviço","preco":"Preço Base (R$)"}) if not _dfs.empty else pd.DataFrame()
             else:
-                df_servicos_lista = carregar_servicos().rename(columns={"id":"Código","nome":"Serviço","preco":"Preço Base (R$)"})
+                df_servicos_lista = sb_query("servicos", order="nome").rename(columns={"id":"Código","nome":"Serviço","preco":"Preço Base (R$)"})
             
             selecao_servicos = st.dataframe(
                 df_servicos_lista, 
@@ -1329,7 +1293,6 @@ elif menu == "Catálogo de Serviços":
             novo_preco = st.number_input("Preço Sugerido (R$)", min_value=0.0, format="%.2f")
             if st.button("Adicionar", type="primary", use_container_width=True):
                 if novo_servico:
-                    invalidar_cache()
                     sb_insert("servicos", {"nome": novo_servico, "preco": novo_preco})
                     st.success("Adicionado com sucesso!")
                     st.rerun()
@@ -1357,7 +1320,6 @@ elif menu == "Catálogo de Serviços":
                     if st.button("Salvar Alteração ✅", key="btn_edit_serv", use_container_width=True):
                         if senha_servico == SENHA_MASTER:
                             if alterar_nome_serv:
-                                invalidar_cache()
                                 sb_update("servicos", {"nome": alterar_nome_serv.strip(), "preco": alterar_preco_serv}, "id", servico_clicado_id)
                                 st.success("Serviço atualizado!")
                                 st.session_state.versao_senha_serv += 1
@@ -1370,7 +1332,6 @@ elif menu == "Catálogo de Serviços":
                 with c_del_s:
                     if st.button("Excluir Serviço ❌", key="btn_del_serv", type="secondary", use_container_width=True):
                         if senha_servico == SENHA_MASTER:
-                            invalidar_cache()
                             sb_delete("servicos", "id", servico_clicado_id)
                             st.warning("Serviço excluído do catálogo!")
                             st.session_state.versao_senha_serv += 1
@@ -1696,13 +1657,12 @@ elif menu == "Funcionários":
                 if existente:
                     st.warning(f"⚠️ '{novo_func.strip()}' já está cadastrado.")
                 else:
-                    invalidar_cache()
                     sb_insert("funcionarios", {"nome": novo_func.strip()})
                     st.success(f"✅ '{novo_func.strip()}' cadastrado com sucesso!")
                     st.rerun()
 
     # --- Lista ---
-    _fdf = carregar_funcionarios()
+    _fdf = sb_query("funcionarios", order="nome")
     funcionarios_db = list(zip(_fdf["id"].tolist(), _fdf["nome"].tolist())) if not _fdf.empty else []
 
     if not funcionarios_db:
@@ -1716,7 +1676,6 @@ elif menu == "Funcionários":
                     st.markdown(f"👤 **{func_nome}**")
                 with col_btn:
                     if st.button("🗑️ Remover", key=f"del_func_{func_id}"):
-                        invalidar_cache()
                         sb_delete("funcionarios", "id", func_id)
                         st.success(f"'{func_nome}' removido.")
                         st.rerun()
