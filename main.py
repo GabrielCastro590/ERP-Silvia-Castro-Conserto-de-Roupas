@@ -1370,10 +1370,10 @@ elif menu == "Registrar Despesa":
     query_desp += " ORDER BY data DESC, id DESC"
     _dfd = sb_query("despesas", order="data")
     if not _dfd.empty:
-        if data_ini_desp and data_fim_desp:
-            _dfd = _dfd[(_dfd["data"] >= data_ini_desp.strftime('%Y-%m-%d')) & (_dfd["data"] <= data_fim_desp.strftime('%Y-%m-%d'))]
-        if filtro_status_desp != "Todas":
-            _dfd = _dfd[_dfd["status"] == filtro_status_desp]
+        if data_inicio and data_fim:
+            _dfd = _dfd[(_dfd["data"] >= data_inicio.strftime('%Y-%m-%d')) & (_dfd["data"] <= data_fim.strftime('%Y-%m-%d'))]
+        if filtro_status != "Todos":
+            _dfd = _dfd[_dfd["status"] == filtro_status]
         _dfd = _dfd.sort_values("data", ascending=False)
     df_despesas_filtradas = _dfd
 
