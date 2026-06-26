@@ -1085,7 +1085,7 @@ elif menu == "Painel de Trabalho (Kanban)":
         _df_k = sb_query("ordens_servico", order="id")
         _df_kc = sb_query("clientes")
         if not _df_k.empty and not _df_kc.empty:
-            _df_k = _df_k.merge(_df_kc.rename(columns={"id":"cliente_id","nome":"nome_cliente"}), on="cliente_id", how="left")
+            _df_k = _df_k.merge(_df_kc.rename(columns={"id":"cliente_id","nome":"cliente"}), on="cliente_id", how="left")
         df_os = _df_k if not _df_k.empty else pd.DataFrame()
     except:
         df_os = pd.DataFrame()
