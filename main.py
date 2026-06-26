@@ -15,7 +15,16 @@ st.set_page_config(
     page_icon=FAVICON, 
     layout="wide"
 )
-
+st.markdown(
+    """
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 # Caminho da imagem da logo
 LOGO_PATH = "file.jpeg" if os.path.exists("file.jpeg") else ("logo_silvia.png" if os.path.exists("logo_silvia.png") else None)
 
