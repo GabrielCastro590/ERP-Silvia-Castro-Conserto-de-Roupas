@@ -1,2 +1,8 @@
 [client]
 toolbarMode = "hidden"
+
+[ui]
+hideTopBar = true
+
+[theme]
+hideSidebarNav = false
