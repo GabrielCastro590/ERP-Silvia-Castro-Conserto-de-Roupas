@@ -15,6 +15,98 @@ st.set_page_config(
     page_icon=FAVICON, 
     layout="wide"
 )
+
+# ==========================================
+# 0.5 SISTEMA DE AUTENTICAÇÃO (VERIFICAÇÃO ANTECIPADA)
+# DEVE vir ANTES do CSS, header e sidebar para que
+# o st.stop() impeça qualquer renderização desnecessária.
+# ==========================================
+SENHA_MASTER = os.environ.get("SENHA_ERP", "1234")
+
+if "autenticado" not in st.session_state:
+    st.session_state.autenticado = False
+
+def tela_login():
+    st.markdown("""
+        <style>
+        [data-testid="stHeader"] { display: none !important; }
+        .custom-top-header { display: none !important; }
+        .stApp {
+            background-color: #ffffff !important; 
+        }
+        [data-testid="stVerticalBlockBorderWrapper"] {
+            max-width: 450px !important;
+            margin: 60px auto 0 auto !important;
+            background-color: #fbe4e6 !important; 
+            padding: 35px !important;
+            border-radius: 16px !important;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05) !important;
+            border: 1px solid rgba(0,0,0,0.02) !important;
+        }
+        .login-title {
+            font-family: 'Times New Roman', Times, serif !important;
+            color: #2b2b2b !important;
+            font-weight: 700 !important;
+            text-align: center !important;
+            margin-top: 15px !important;
+            margin-bottom: 2px !important;
+            font-size: 26px !important;
+        }
+        .login-subtitle {
+            font-family: 'Segoe UI', sans-serif !important;
+            color: #5c5c5c !important; 
+            text-align: center !important;
+            font-size: 14px !important;
+            margin-bottom: 25px !important;
+            letter-spacing: 0.5px;
+        }
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stImage"] {
+            display: flex !important;
+            justify-content: center !important;
+            align-items: center !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+            width: 100% !important;
+        }
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stImage"] img {
+            border-radius: 12px !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        with st.container(border=True):
+            if os.path.exists("logo_silvia.png"):
+                sub_col1, sub_col2, sub_col3 = st.columns([1.5, 2, 1.5])
+                with sub_col2:
+                    st.image("logo_silvia.png", use_container_width=True)
+            else:
+                st.markdown("<h1 style='text-align: center; font-size: 50px; margin:0;'>🧵</h1>", unsafe_allow_html=True)
+
+            st.markdown('<h2 class="login-title">Silvia Castro Conserto de Roupas</h2>', unsafe_allow_html=True)
+            st.markdown('<p class="login-subtitle">Gestão da Empresa</p>', unsafe_allow_html=True)
+
+            senha_digitada_login = st.text_input("Senha de Acesso", type="password", key="campo_senha_login", placeholder="••••••••")
+            st.write("")
+
+            if st.button("Entrar no Sistema ✅", type="primary", use_container_width=True):
+                if senha_digitada_login == SENHA_MASTER:
+                    st.session_state.autenticado = True
+                    st.rerun()
+                else:
+                    st.error("❌ Senha incorreta. Tente novamente.")
+
+    st.stop()
+
+# Verificação antecipada — se não autenticado, mostra login e para tudo aqui
+if not st.session_state.autenticado:
+    tela_login()
+
+# ==========================================
+# A partir daqui só executa se autenticado
+# ==========================================
+
 st.markdown(
     """
     <style>
@@ -268,109 +360,6 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ==========================================
-# 0.5 SISTEMA DE AUTENTICAÇÃO (LOGIN VISUAL)
-# ==========================================
-# Lê a senha de uma variável de ambiente. Se não existir, usa "1234" como padrão.
-# Para definir, crie um arquivo .env ou execute: export SENHA_ERP="sua_senha_aqui"
-SENHA_MASTER = os.environ.get("SENHA_ERP", "1234")
-
-if "autenticado" not in st.session_state:
-    st.session_state.autenticado = False
-
-def tela_login():
-    st.markdown("""
-        <style>
-        /* Remove o cabeçalho padrão e ajusta o fundo da tela de login */
-        [data-testid="stHeader"] { display: none !important; }
-        .custom-top-header { display: none !important; }
-        
-        /* Fundo geral da tela em BRANCO */
-        .stApp {
-            background-color: #ffffff !important; 
-        }
-        
-        /* Quadrado centralizado com a cor ROSA SUAVE do logo */
-        [data-testid="stVerticalBlockBorderWrapper"] {
-            max-width: 450px !important;
-            margin: 60px auto 0 auto !important;
-            background-color: #fbe4e6 !important; 
-            padding: 35px !important;
-            border-radius: 16px !important;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.05) !important;
-            border: 1px solid rgba(0,0,0,0.02) !important;
-        }
-        
-        /* Alinhamentos dos textos */
-        .login-title {
-            font-family: 'Times New Roman', Times, serif !important;
-            color: #2b2b2b !important;
-            font-weight: 700 !important;
-            text-align: center !important;
-            margin-top: 15px !important;
-            margin-bottom: 2px !important;
-            font-size: 26px !important;
-        }
-        
-        .login-subtitle {
-            font-family: 'Segoe UI', sans-serif !important;
-            color: #5c5c5c !important; 
-            text-align: center !important;
-            font-size: 14px !important;
-            margin-bottom: 25px !important;
-            letter-spacing: 0.5px;
-        }
-        
-        /* Força a centralização absoluta de qualquer container de imagem dentro do bloco */
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stImage"] {
-            display: flex !important;
-            justify-content: center !important;
-            align-items: center !important;
-            margin-left: auto !important;
-            margin-right: auto !important;
-            width: 100% !important;
-        }
-        
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stImage"] img {
-            border-radius: 12px !important;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1, 2, 1])
-    
-    with col2:
-        with st.container(border=True):
-            # 1. Exibe a Logo centralizada com tamanho menor e controlado
-            if os.path.exists("logo_silvia.png"):
-                # Ajustamos aqui: aumentamos as laterais para a coluna do meio ficar menor
-                sub_col1, sub_col2, sub_col3 = st.columns([1.5, 2, 1.5])
-                with sub_col2:
-                    st.image("logo_silvia.png", use_container_width=True)
-            else:
-                st.markdown("<h1 style='text-align: center; font-size: 50px; margin:0;'>🧵</h1>", unsafe_allow_html=True)
-                
-            # 2. Títulos
-            st.markdown('<h2 class="login-title">Silvia Castro Conserto de Roupas</h2>', unsafe_allow_html=True)
-            st.markdown('<p class="login-subtitle">Gestão da Empresa</p>', unsafe_allow_html=True)
-            
-            # 3. Campo de senha e botão
-            senha_digitada_login = st.text_input("Senha de Acesso", type="password", key="campo_senha_login", placeholder="••••••••")
-            st.write("")
-            
-            if st.button("Entrar no Sistema ✅", type="primary", use_container_width=True):
-                if senha_digitada_login == SENHA_MASTER:
-                    st.session_state.autenticado = True
-                    st.rerun()
-                else:
-                    st.error("❌ Senha incorreta. Tente novamente.")
-                    
-    st.stop()
-
-if not st.session_state.autenticado:
-    tela_login()
-
-
 # DADOS DA EMPRESA (Para o Cupom)
 NOME_LOJA = "Silvia Castro Conserto de Roupas"
 CNPJ_LOJA = "36.329.114/0001-27"
@@ -381,7 +370,10 @@ TELEFONE_LOJA = "12 99683-1392"
 # 1. CONEXÃO COM O BANCO DE DADOS (SUPABASE)
 # ==========================================
 SUPABASE_URL = "https://tqagcuooqbtotwnaznue.supabase.co"
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_secret_QqBIxIZ-h5BC7719HiemSw_QzgDCk77")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+if not SUPABASE_KEY:
+    st.error("⚠️ Variável de ambiente SUPABASE_KEY não configurada. Contate o administrador do sistema.")
+    st.stop()
 
 @st.cache_resource
 def get_supabase():
@@ -758,16 +750,6 @@ elif menu == "Consultar / Editar OS":
     
     busca_os = st.text_input("🔍 Buscar OS (Digite o Nº da OS ou o nome da Cliente)")
     aba_ativas, aba_entregues = st.tabs(["📌 OS Ativas", "📦 Histórico de OS Entregues"])
-    
-    clausula_busca = ""
-    parametros_busca = []
-    if busca_os:
-        if busca_os.isdigit():
-            clausula_busca = " AND (os.id = ?) "
-            parametros_busca.append(int(busca_os))
-        else:
-            clausula_busca = " AND (c.nome LIKE ?) "
-            parametros_busca.append(f"%{busca_os}%")
 
     os_clicada_id = None
 
@@ -1086,15 +1068,13 @@ elif menu == "Painel de Trabalho (Kanban)":
             data_alvo = data_escolhida.strftime('%d/%m/%Y')
 
     try:
-        query_base = """
-            SELECT os.id, c.nome as cliente, c.whatsapp, os.servico_nome, os.prazo_entrega, os.status, os.qtd_pecas, os.prioridade, os.horario_pedido, os.valor_total, os.valor_sinal
-            FROM ordens_servico os JOIN clientes c ON os.cliente_id = c.id 
-            WHERE os.status != 'Entregue'
-        """
         _df_k = sb_query("ordens_servico", order="id")
         _df_kc = sb_query("clientes")
         if not _df_k.empty and not _df_kc.empty:
             _df_k = _df_k.merge(_df_kc.rename(columns={"id":"cliente_id","nome":"cliente"}), on="cliente_id", how="left")
+        # CORREÇÃO: filtrar OS entregues para não aparecerem no Kanban
+        if not _df_k.empty:
+            _df_k = _df_k[_df_k['status'] != 'Entregue']
         df_os = _df_k if not _df_k.empty else pd.DataFrame()
     except:
         df_os = pd.DataFrame()
@@ -1366,17 +1346,6 @@ elif menu == "Registrar Despesa":
         with f_col4:
             filtro_status = st.selectbox("Status", ["Todos", "Paga", "Pendente / Agendada"])
 
-    query_desp = "SELECT id, data, descricao, valor, category, tipo, status FROM despesas WHERE data BETWEEN ? AND ?"
-    params_desp = [data_inicio.strftime('%Y-%m-%d'), data_fim.strftime('%Y-%m-%d')]
-    
-    if filtro_tipo != "Todas":
-        query_desp += " AND tipo = ?"
-        params_desp.append(filtro_tipo)
-    if filtro_status != "Todos":
-        query_desp += " AND status = ?"
-        params_desp.append(filtro_status)
-        
-    query_desp += " ORDER BY data DESC, id DESC"
     _dfd = sb_query("despesas", order="data")
     if not _dfd.empty:
         if data_inicio and data_fim:
