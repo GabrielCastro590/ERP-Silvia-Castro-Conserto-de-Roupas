@@ -214,77 +214,56 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(0,0,0,0.02) !important;
     }
     
-    /* Customizando a Barra Lateral (Sidebar) */
-    /* IMPORTANTE: NÃO usar display/visibility !important aqui —
-       o Streamlit precisa controlar o colapso da sidebar nativamente */
+    /* ── SIDEBAR ── */
     [data-testid="stSidebar"] {
         background: linear-gradient(180deg, #fff0f3 0%, #fce4ec 100%) !important;
         border-right: 1px solid #f8bbd0 !important;
-        /* padding-top: 0 — o espaço interno já é gerenciado pelo Streamlit */
-        z-index: 99 !important;   /* MENOR que o header (1000) para ficar por baixo */
-        margin-top: 72px !important; /* Empurra a sidebar para baixo do header fixo */
+        margin-top: 72px !important;
+        z-index: 99 !important;
     }
 
-    /* Corrige o conteúdo interno da sidebar para não ter padding duplo */
     [data-testid="stSidebarContent"] {
         padding-top: 8px !important;
     }
 
-    /* Título do menu lateral */
+    /* Label do grupo de radio (título "Ir para:") */
     [data-testid="stSidebar"] .stRadio > label {
         font-size: 11px !important;
         font-weight: 700 !important;
         letter-spacing: 1.5px !important;
         text-transform: uppercase !important;
         color: #ad1457 !important;
-        padding-left: 4px;
+        padding-left: 20px !important;
     }
 
-    /* Container do grupo de opções — sem gap, sem padding lateral */
-    [data-testid="stSidebar"] .stRadio div[role="radiogroup"] {
-        gap: 0px !important;
-        display: flex;
-        flex-direction: column;
-    }
-
-    /* Cada item do menu */
-    [data-testid="stSidebar"] .stRadio div[role="radiogroup"] label {
-        display: flex !important;
-        align-items: center !important;
+    /* Cada item do menu — texto visível e clicável */
+    [data-testid="stSidebar"] .stRadio label {
         padding: 11px 20px !important;
-        border-radius: 0px !important;
         font-size: 14px !important;
         font-weight: 500 !important;
         color: #6d2b45 !important;
         cursor: pointer !important;
         transition: background-color 0.15s ease !important;
-        border: none !important;
-        background-color: transparent !important;
-        width: 100% !important;
-        font-family: 'Segoe UI', sans-serif !important;
+        border-radius: 0px !important;
+        font-family: "Segoe UI", sans-serif !important;
     }
 
-    /* Hover */
-    [data-testid="stSidebar"] .stRadio div[role="radiogroup"] label:hover {
-        background-color: #f8bbd0 !important;
-        color: #880e4f !important;
-    }
-
-    /* Item selecionado — rosa suave, retângulo cheio */
-    [data-testid="stSidebar"] .stRadio div[role="radiogroup"] label:has(input:checked) {
+    /* Item selecionado */
+    [data-testid="stSidebar"] .stRadio label:has(input:checked) {
         background-color: #f195b2 !important;
         color: #4a0e2a !important;
         font-weight: 700 !important;
         border-left: 4px solid #d4607e !important;
     }
 
-    /* Esconde o círculo do radio button */
-    [data-testid="stSidebar"] .stRadio div[role="radiogroup"] label span:first-child {
-        display: none !important;
+    /* Hover */
+    [data-testid="stSidebar"] .stRadio label:hover {
+        background-color: #f8bbd0 !important;
+        color: #880e4f !important;
     }
 
-    /* Esconde o svg/circle interno do radio */
-    [data-testid="stSidebar"] .stRadio div[role="radiogroup"] input[type="radio"] {
+    /* Esconde só o input[radio] nativo (bolinha) — sem tocar nos spans de texto */
+    [data-testid="stSidebar"] .stRadio input[type="radio"] {
         display: none !important;
     }
 
@@ -294,14 +273,7 @@ st.markdown("""
         opacity: 0.4;
     }
 
-    /* Centraliza o logo na sidebar */
-    [data-testid="stSidebar"] [data-testid="stImage"],
-    [data-testid="stSidebar"] [data-testid="stImage"] > div {
-        display: flex !important;
-        justify-content: center !important;
-        width: 100% !important;
-        text-align: center !important;
-    }
+    /* Logo na sidebar */
     [data-testid="stSidebar"] [data-testid="stImage"] img {
         margin-left: auto !important;
         margin-right: auto !important;
