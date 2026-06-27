@@ -109,12 +109,7 @@ st.markdown(
     footer {visibility: hidden;}
     header {visibility: hidden;}
 
-    /* RESET: garante que a sidebar apareça após o login */
-    [data-testid="stSidebar"] {
-        display: flex !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-    }
+    /* Sidebar: não forçar display aqui — o Streamlit controla abertura/fechamento */
     </style>
     """,
     unsafe_allow_html=True
@@ -159,12 +154,12 @@ st.markdown("""
     .custom-top-header {
         position: fixed;
         top: 0;
-        left: 0;
+        left: 0;    /* cobre toda a largura — a sidebar fica POR BAIXO (z-index menor) */
         right: 0;
         height: 72px;
         background: linear-gradient(135deg, #d4607e 0%, #e8829c 60%, #f195b2 100%) !important;
         box-shadow: 0 3px 16px rgba(136, 14, 79, 0.35);
-        z-index: 1000;
+        z-index: 1000;  /* MAIOR que a sidebar (99) — header fica na frente */
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -220,19 +215,19 @@ st.markdown("""
     }
     
     /* Customizando a Barra Lateral (Sidebar) */
+    /* IMPORTANTE: NÃO usar display/visibility !important aqui —
+       o Streamlit precisa controlar o colapso da sidebar nativamente */
     [data-testid="stSidebar"] {
         background: linear-gradient(180deg, #fff0f3 0%, #fce4ec 100%) !important;
         border-right: 1px solid #f8bbd0 !important;
-        padding-top: 20px;
-        z-index: 1100 !important;
-        display: flex !important;
-        visibility: visible !important;
+        /* padding-top: 0 — o espaço interno já é gerenciado pelo Streamlit */
+        z-index: 99 !important;   /* MENOR que o header (1000) para ficar por baixo */
+        margin-top: 72px !important; /* Empurra a sidebar para baixo do header fixo */
     }
 
-    /* Garante que o conteúdo interno da sidebar também apareça */
+    /* Corrige o conteúdo interno da sidebar para não ter padding duplo */
     [data-testid="stSidebarContent"] {
-        display: flex !important;
-        visibility: visible !important;
+        padding-top: 8px !important;
     }
 
     /* Título do menu lateral */
