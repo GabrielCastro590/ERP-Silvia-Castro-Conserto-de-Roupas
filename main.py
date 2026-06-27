@@ -27,17 +27,23 @@ if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
 
 def tela_login():
+    # CSS isolado para a tela de login — NÃO afeta a sidebar nem o app principal
     st.markdown("""
         <style>
+        /* Esconde o header padrão do Streamlit na tela de login */
         [data-testid="stHeader"] { display: none !important; }
-        .custom-top-header { display: none !important; }
-        .stApp {
-            background-color: #ffffff !important; 
-        }
-        [data-testid="stVerticalBlockBorderWrapper"] {
+
+        /* Esconde a sidebar na tela de login (não há menu antes de autenticar) */
+        [data-testid="stSidebar"] { display: none !important; }
+
+        /* Fundo branco limpo na tela de login */
+        .stApp { background-color: #ffffff !important; }
+
+        /* Estilo do card de login centralizado */
+        .login-card [data-testid="stVerticalBlockBorderWrapper"] {
             max-width: 450px !important;
             margin: 60px auto 0 auto !important;
-            background-color: #fbe4e6 !important; 
+            background-color: #fbe4e6 !important;
             padding: 35px !important;
             border-radius: 16px !important;
             box-shadow: 0 10px 25px rgba(0,0,0,0.05) !important;
@@ -54,22 +60,11 @@ def tela_login():
         }
         .login-subtitle {
             font-family: 'Segoe UI', sans-serif !important;
-            color: #5c5c5c !important; 
+            color: #5c5c5c !important;
             text-align: center !important;
             font-size: 14px !important;
             margin-bottom: 25px !important;
             letter-spacing: 0.5px;
-        }
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stImage"] {
-            display: flex !important;
-            justify-content: center !important;
-            align-items: center !important;
-            margin-left: auto !important;
-            margin-right: auto !important;
-            width: 100% !important;
-        }
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stImage"] img {
-            border-radius: 12px !important;
         }
         </style>
     """, unsafe_allow_html=True)
@@ -113,6 +108,13 @@ st.markdown(
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
+
+    /* RESET: garante que a sidebar apareça após o login */
+    [data-testid="stSidebar"] {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+    }
     </style>
     """,
     unsafe_allow_html=True
@@ -222,7 +224,15 @@ st.markdown("""
         background: linear-gradient(180deg, #fff0f3 0%, #fce4ec 100%) !important;
         border-right: 1px solid #f8bbd0 !important;
         padding-top: 20px;
-        z-index: 999 !important;
+        z-index: 1100 !important;
+        display: flex !important;
+        visibility: visible !important;
+    }
+
+    /* Garante que o conteúdo interno da sidebar também apareça */
+    [data-testid="stSidebarContent"] {
+        display: flex !important;
+        visibility: visible !important;
     }
 
     /* Título do menu lateral */
