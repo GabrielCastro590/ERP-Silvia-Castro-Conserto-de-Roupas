@@ -218,12 +218,24 @@ st.markdown("""
     [data-testid="stSidebar"] {
         background: linear-gradient(180deg, #fff0f3 0%, #fce4ec 100%) !important;
         border-right: 1px solid #f8bbd0 !important;
-        margin-top: 72px !important;
+        margin-top: 72px !important;   /* empurra abaixo do header fixo */
         z-index: 99 !important;
+        height: calc(100vh - 72px) !important; /* altura correta descontando o header */
     }
 
+    /* Remove o espaço interno extra do topo da sidebar */
     [data-testid="stSidebarContent"] {
-        padding-top: 8px !important;
+        padding-top: 0px !important;
+        margin-top: 0px !important;
+    }
+
+    /* Esconde o botão nativo de minimizar/colapsar a sidebar */
+    [data-testid="stSidebarCollapseButton"],
+    button[kind="header"][aria-label="Collapse sidebar"],
+    button[kind="header"][aria-label="Expandir barra lateral"],
+    button[kind="header"][aria-label="Recolher barra lateral"],
+    [data-testid="collapsedControl"] {
+        display: none !important;
     }
 
     /* Label do grupo de radio (título "Ir para:") */
