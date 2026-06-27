@@ -450,18 +450,21 @@ if "versao_nova_os" not in st.session_state:
 # ==========================================
 # 2. MENU LATERAL DE NAVEGAÇÃO
 # ==========================================
-if LOGO_PATH:
-    import base64
-    with open(LOGO_PATH, "rb") as img_file:
-        logo_b64 = base64.b64encode(img_file.read()).decode()
-    ext = LOGO_PATH.split(".")[-1].replace("jpg", "jpeg")
-    st.sidebar.markdown(f"""
-        <div style="text-align: center; padding: 10px 0 5px 0;">
-            <img src="data:image/{ext};base64,{logo_b64}" style="width: 160px; display: inline-block;">
-        </div>
-    """, unsafe_allow_html=True)
-else:
-    st.sidebar.title("🧵 Silvia Castro Conserto de Roupas")
+try:
+    if LOGO_PATH and os.path.exists(LOGO_PATH):
+        import base64
+        with open(LOGO_PATH, "rb") as img_file:
+            logo_b64 = base64.b64encode(img_file.read()).decode()
+        ext = LOGO_PATH.split(".")[-1].replace("jpg", "jpeg")
+        st.sidebar.markdown(f"""
+            <div style="text-align: center; padding: 10px 0 5px 0;">
+                <img src="data:image/{ext};base64,{logo_b64}" style="width: 160px; display: inline-block;">
+            </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.sidebar.title("🧵 Silvia Castro")
+except Exception:
+    st.sidebar.title("🧵 Silvia Castro")
     
 st.sidebar.write("---")
 menu = st.sidebar.radio("Ir para:", [
