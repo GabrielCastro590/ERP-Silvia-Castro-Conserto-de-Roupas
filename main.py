@@ -370,16 +370,36 @@ def get_supabase():
 
 sb = get_supabase()
 
+# ------------------------------------------------------------------
+# CACHE DE CONSULTAS
+# ------------------------------------------------------------------
+# O Streamlit reexecuta o script inteiro a cada clique/tecla digitada.
+# Sem cache, isso significa refazer TODAS as buscas no Supabase (viagem
+# de rede) a cada pequena interação — essa era a principal causa de lentidão.
+#
+# Aqui as consultas ficam guardadas em memória por um curto período.
+# "db_version" é incrementado sempre que algo é inserido/alterado/excluído,
+# o que invalida o cache automaticamente para que os dados nunca fiquem
+# desatualizados após um cadastro, edição ou exclusão.
+# ------------------------------------------------------------------
+if "db_version" not in st.session_state:
+    st.session_state.db_version = 0
+
+@st.cache_data(ttl=120, show_spinner=False)
+def _sb_query_cached(table, filters_tuple, select, order, _version):
+    q = sb.table(table).select(select)
+    if filters_tuple:
+        for col, val in filters_tuple:
+            q = q.eq(col, val)
+    if order:
+        q = q.order(order)
+    result = q.execute()
+    return pd.DataFrame(result.data) if result.data else pd.DataFrame()
+
 def sb_query(table, filters=None, select="*", order=None):
     try:
-        q = sb.table(table).select(select)
-        if filters:
-            for col, val in filters.items():
-                q = q.eq(col, val)
-        if order:
-            q = q.order(order)
-        result = q.execute()
-        return pd.DataFrame(result.data) if result.data else pd.DataFrame()
+        filters_tuple = tuple(sorted(filters.items())) if filters else ()
+        return _sb_query_cached(table, filters_tuple, select, order, st.session_state.db_version).copy()
     except Exception as e:
         st.error(f"Erro ao consultar {table}: {e}")
         return pd.DataFrame()
@@ -387,6 +407,7 @@ def sb_query(table, filters=None, select="*", order=None):
 def sb_insert(table, data):
     try:
         result = sb.table(table).insert(data).execute()
+        st.session_state.db_version += 1
         if result.data:
             return result.data[0].get("id")
     except Exception as e:
@@ -396,12 +417,14 @@ def sb_insert(table, data):
 def sb_update(table, data, match_col, match_val):
     try:
         sb.table(table).update(data).eq(match_col, match_val).execute()
+        st.session_state.db_version += 1
     except Exception as e:
         st.error(f"Erro ao atualizar {table}: {e}")
 
 def sb_delete(table, match_col, match_val):
     try:
         sb.table(table).delete().eq(match_col, match_val).execute()
+        st.session_state.db_version += 1
     except Exception as e:
         st.error(f"Erro ao deletar em {table}: {e}")
 
@@ -536,7 +559,8 @@ if menu == "Nova OS":
             detalhes = st.text_area("Detalhes / Observações do Ajuste", value="", key=f"detalhes_{v}")
             
             st.write("---")
-            funcionarios_lista = sb_query("funcionarios", order="nome")["nome"].tolist() if not sb_query("funcionarios", order="nome").empty else []
+            _df_func_nova_os = sb_query("funcionarios", order="nome")
+            funcionarios_lista = _df_func_nova_os["nome"].tolist() if not _df_func_nova_os.empty else []
             if funcionarios_lista:
                 atendente_selecionado = st.selectbox("👤 Atendente (quem está abrindo a OS)", ["— Selecione —"] + funcionarios_lista, key=f"atend_{v}")
                 atendente_nome = atendente_selecionado if atendente_selecionado != "— Selecione —" else ""
@@ -1452,21 +1476,43 @@ elif menu == "Registrar Despesa":
 elif menu == "Gráficos & Financeiro":
     st.title("📊 Painel Financeiro")
 
+    with st.container(border=True):
+        st.subheader("🔍 Filtros de Consulta")
+        fin_col1, fin_col2 = st.columns(2)
+        with fin_col1:
+            fin_data_inicio = st.date_input("Data de Início", value=datetime.today().replace(day=1), format="DD/MM/YYYY", key="fin_data_inicio")
+        with fin_col2:
+            fin_data_fim = st.date_input("Data de Fim", value=datetime.today(), format="DD/MM/YYYY", key="fin_data_fim")
+
+    # Ajuda a filtrar OS por Prazo de Entrega (campo de data completa das OS)
+    def _os_no_periodo(df, col="prazo_entrega"):
+        if df.empty or col not in df.columns:
+            return df
+        datas = pd.to_datetime(df[col], format="%d/%m/%Y", errors="coerce")
+        mascara = (datas >= pd.Timestamp(fin_data_inicio)) & (datas <= pd.Timestamp(fin_data_fim))
+        return df[mascara]
+
     # Apenas OS com status 'Entregue' representam receita realizada
-    _df_ent = sb_query("ordens_servico", filters={"status": "Entregue"}, select="valor_total")
+    _df_ent = sb_query("ordens_servico", filters={"status": "Entregue"}, select="valor_total,prazo_entrega")
+    _df_ent = _os_no_periodo(_df_ent)
     total_entradas = float(_df_ent["valor_total"].sum()) if not _df_ent.empty else 0.0
-    _df_sai = sb_query("despesas", filters={"status": "Paga"}, select="valor")
+
+    _df_sai = sb_query("despesas", filters={"status": "Paga"}, select="valor,data")
+    if not _df_sai.empty:
+        _df_sai = _df_sai[(_df_sai["data"] >= fin_data_inicio.strftime('%Y-%m-%d')) & (_df_sai["data"] <= fin_data_fim.strftime('%Y-%m-%d'))]
     total_saidas = float(_df_sai["valor"].sum()) if not _df_sai.empty else 0.0
     lucro = total_entradas - total_saidas
 
-    # OS ativas que ainda não foram entregues (receita pendente / a receber)
-    _df_pend = sb_query("ordens_servico", select="valor_total,status")
-    total_pendente_os = float(_df_pend[_df_pend["status"] != "Entregue"]["valor_total"].sum()) if not _df_pend.empty else 0.0
+    # OS ativas que ainda não foram entregues (receita pendente / a receber), dentro do período de prazo
+    _df_pend = sb_query("ordens_servico", select="valor_total,status,prazo_entrega")
+    _df_pend = _df_pend[_df_pend["status"] != "Entregue"] if not _df_pend.empty else _df_pend
+    _df_pend = _os_no_periodo(_df_pend)
+    total_pendente_os = float(_df_pend["valor_total"].sum()) if not _df_pend.empty else 0.0
 
     with st.container(border=True):
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("💰 Faturamento Realizado", f"R$ {total_entradas:,.2f}", help="Soma das OS com status 'Entregue'")
-        c2.metric("⏳ A Receber (OS Ativas)", f"R$ {total_pendente_os:,.2f}", help="OS abertas que ainda não foram entregues")
+        c1.metric("💰 Faturamento Realizado", f"R$ {total_entradas:,.2f}", help="Soma das OS com status 'Entregue' no período (por Data de Entrega)")
+        c2.metric("⏳ A Receber (OS Ativas)", f"R$ {total_pendente_os:,.2f}", help="OS abertas com entrega prevista no período")
         c3.metric("💸 Despesas Pagas", f"R$ {total_saidas:,.2f}", delta=f"-R$ {total_saidas:,.2f}", delta_color="inverse")
         c4.metric("📈 Lucro Líquido Real", f"R$ {lucro:,.2f}")
     
@@ -1474,7 +1520,8 @@ elif menu == "Gráficos & Financeiro":
     
     with st.container(border=True):
         st.subheader("💳 Faturamento por Meio de Pagamento (Sinal)")
-        _dfms = sb_query("ordens_servico", select="forma_sinal,valor_sinal")
+        _dfms = sb_query("ordens_servico", select="forma_sinal,valor_sinal,prazo_entrega")
+        _dfms = _os_no_periodo(_dfms)
         df_meios_sinal = _dfms.groupby("forma_sinal")["valor_sinal"].sum().reset_index().rename(columns={"forma_sinal":"Meio","valor_sinal":"Total"}) if not _dfms.empty else pd.DataFrame()
         st.dataframe(df_meios_sinal, use_container_width=True, hide_index=True)
     
