@@ -377,35 +377,16 @@ sb = get_supabase()
 # Sem cache, isso significa refazer TODAS as buscas no Supabase (viagem
 # de rede) a cada pequena interação — essa era a principal causa de lentidão.
 #
-# Aqui as consultas ficam guardadas em memória por um curto período.
-# "db_version" é incrementado sempre que algo é inserido/alterado/excluído,
-# o que invalida o cache automaticamente para que os dados nunca fiquem
-# desatualizados após um cadastro, edição ou exclusão.
+# Aqui as consultas ficam guardadas em memória por um curto período (até
+# 120s). Sempre que algo é inserido/editado/excluído, chamamos
+# "_sb_query_cached.clear()" — o comando oficial do Streamlit para
+# esvaziar esse cache na hora, para TODOS os usuários/telas conectados
+# ao mesmo tempo. Isso garante que a próxima leitura, em qualquer
+# aparelho, sempre traga o dado atualizado, sem depender de nenhum
+# controle manual de versão.
 # ------------------------------------------------------------------
-# ------------------------------------------------------------------
-# CACHE DE CONSULTAS
-# ------------------------------------------------------------------
-# O Streamlit reexecuta o script inteiro a cada clique/tecla digitada.
-# Sem cache, isso significa refazer TODAS as buscas no Supabase (viagem
-# de rede) a cada pequena interação — essa era a principal causa de lentidão.
-#
-# Aqui as consultas ficam guardadas em memória por um curto período.
-# O contador de versão abaixo é GLOBAL (compartilhado por todos os
-# usuários/telas conectados ao sistema, via st.cache_resource) — e não
-# por sessão individual. Isso é essencial: se fosse por sessão, uma
-# atualização feita em um celular/tablet não apareceria para quem está
-# vendo o sistema em outro aparelho, causando inconsistência (foi o que
-# quebrou o Kanban). Sempre que algo é inserido/alterado/excluído, esse
-# contador global sobe e invalida o cache para TODOS ao mesmo tempo.
-# ------------------------------------------------------------------
-@st.cache_resource
-def _get_db_version_holder():
-    return {"v": 0}
-
-_db_version_holder = _get_db_version_holder()
-
 @st.cache_data(ttl=120, show_spinner=False)
-def _sb_query_cached(table, filters_tuple, select, order, _version):
+def _sb_query_cached(table, filters_tuple, select, order):
     q = sb.table(table).select(select)
     if filters_tuple:
         for col, val in filters_tuple:
@@ -418,7 +399,7 @@ def _sb_query_cached(table, filters_tuple, select, order, _version):
 def sb_query(table, filters=None, select="*", order=None):
     try:
         filters_tuple = tuple(sorted(filters.items())) if filters else ()
-        return _sb_query_cached(table, filters_tuple, select, order, _db_version_holder["v"]).copy()
+        return _sb_query_cached(table, filters_tuple, select, order).copy()
     except Exception as e:
         st.error(f"Erro ao consultar {table}: {e}")
         return pd.DataFrame()
@@ -426,7 +407,7 @@ def sb_query(table, filters=None, select="*", order=None):
 def sb_insert(table, data):
     try:
         result = sb.table(table).insert(data).execute()
-        _db_version_holder["v"] += 1
+        _sb_query_cached.clear()
         if result.data:
             return result.data[0].get("id")
     except Exception as e:
@@ -436,14 +417,14 @@ def sb_insert(table, data):
 def sb_update(table, data, match_col, match_val):
     try:
         sb.table(table).update(data).eq(match_col, match_val).execute()
-        _db_version_holder["v"] += 1
+        _sb_query_cached.clear()
     except Exception as e:
         st.error(f"Erro ao atualizar {table}: {e}")
 
 def sb_delete(table, match_col, match_val):
     try:
         sb.table(table).delete().eq(match_col, match_val).execute()
-        _db_version_holder["v"] += 1
+        _sb_query_cached.clear()
     except Exception as e:
         st.error(f"Erro ao deletar em {table}: {e}")
 
