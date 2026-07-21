@@ -904,10 +904,18 @@ elif menu == "Consultar / Editar OS":
                 with col_b1:
                     if st.button("Salvar Alterações / Reabrir OS ✅", use_container_width=True, type="primary"):
                         if senha_digitada == SENHA_MASTER:
-                            f_restante = "Quitado" if novo_sinal >= novo_total else novo_forma_restante
-                            
+                            # Se a Forma de Pag. (Sinal ou Restante) foi marcada como "Quitado",
+                            # o valor do sinal precisa ser igualado ao valor total — senão a
+                            # "Situação Financeira" da tela de Consulta (calculada por
+                            # valor_total - valor_sinal) continua mostrando "Falta pagar".
+                            if novo_forma_restante == "Quitado" or novo_forma_sinal == "Quitado":
+                                sinal_a_salvar = novo_total
+                            else:
+                                sinal_a_salvar = novo_sinal
+                            f_restante = "Quitado" if sinal_a_salvar >= novo_total else novo_forma_restante
+
                             sb_update("ordens_servico", {
-                                "detalhes": novo_detalhe, "valor_total": novo_total, "valor_sinal": novo_sinal,
+                                "detalhes": novo_detalhe, "valor_total": novo_total, "valor_sinal": sinal_a_salvar,
                                 "prazo_entrega": novo_prazo, "status": novo_status, "horario_pedido": novo_hora_ped,
                                 "forma_sinal": novo_forma_sinal, "forma_restante": f_restante
                             }, "id", id_os)
